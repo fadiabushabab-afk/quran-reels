@@ -355,8 +355,9 @@ def main():
             verses = choose_passage(rng, history, args.min_sec, args.max_sec, folder, tmp,
                                     args.translation or None)
 
-        bgs = [os.path.join(HERE, "backgrounds", f) for f in sorted(os.listdir(os.path.join(HERE, "backgrounds")))
-               if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))]
+        bg_dir = os.path.join(HERE, "backgrounds")
+        bgs = [os.path.join(bg_dir, f) for f in sorted(os.listdir(bg_dir))
+               if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))] if os.path.isdir(bg_dir) else []
         bg = make_background(rng.choice(bgs) if bgs else None, rng, os.path.join(tmp, "bg.jpg"))
 
         mp4 = os.path.join(args.out, "reel.mp4")
