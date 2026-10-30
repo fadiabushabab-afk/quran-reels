@@ -1,6 +1,14 @@
 # Quran Reels generator
 
-Makes a daily 1080x1920 Quran video from a random short passage.
+Makes a daily 1080x1920 Quran video.
+
+- **Passages:** chosen from `passages.py`: short surahs in full (opened with the basmala) and
+  well-known verses of great virtue, always complete in meaning. Every passage is used once
+  before any repeats. Edit `passages.py` to add or remove passages.
+- **Reciter:** random each day from 8 reciters (if a passage is longer than 88 s with one
+  reciter, another is tried; Facebook Reels allow up to 90 s).
+- **Background:** generated Islamic geometric pattern (8-pointed star lattice) with a mihrab arch,
+  in one of five colour schemes. Photos you add to `backgrounds/` are used on about half of the days.
 
 - Audio: everyayah.com (per-verse MP3, choice of reciters)
 - Text: api.alquran.cloud (Uthmani script)
@@ -16,4 +24,4 @@ Python 3.9+, ffmpeg on PATH, Pillow with libraqm (`pip install -r requirements.t
 
 Output goes to `out/`: reel.mp4, caption.txt, meta.json.
 Put your own photos in `backgrounds/` (any jpg/png) to use them instead of the generated gradient.
-`history.json` remembers used passages so they don't repeat within a year.
+`history.json` remembers used passages.
