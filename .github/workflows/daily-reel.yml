@@ -36,8 +36,17 @@ jobs:
 
       - name: Generate reel
         run: |
+          python -c "from PIL import features; print('raqm:', features.check('raqm'))"
+          set +e
           python generate.py --reciter "${{ github.event.inputs.reciter || 'random' }}" \
-                             --handle "${{ vars.HANDLE }}"
+                             --handle "${{ vars.HANDLE }}" 2> err.txt
+          code=$?
+          set -e
+          cat err.txt
+          if [ $code -ne 0 ]; then
+            echo "::error title=generate.py failed::$(tail -c 1500 err.txt | tr '\n' ' ')"
+            exit $code
+          fi
           cat out/caption.txt
 
       - name: Save video as a downloadable artifact
