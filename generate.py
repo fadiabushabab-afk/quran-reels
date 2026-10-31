@@ -140,13 +140,14 @@ def choose(rng, history, reciter_arg, tmp, max_sec, fixed=None):
     try the other reciters, then the next passage."""
     keys = list(RECITERS)
     candidates = [fixed] if fixed else order_candidates(rng, history)
-    for p in candidates[:15]:
+    for p in candidates[:60]:
         surah, start, end = p[0], p[1], p[2]
         title = p[3] if len(p) > 3 else ""
         if reciter_arg != "random":
             order = [reciter_arg]
         else:
             order = keys[:]; rng.shuffle(order)
+            order = order if fixed else order[:2]      # long passages: one retry, then move on
         for rk in order:
             res = build_passage(surah, start, end, rk, tmp, max_sec)
             if res:
@@ -374,14 +375,17 @@ def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=F
     return total
 
 
-def caption(verses, title, reciter_ar, hashtags):
+def caption(verses, title, reciter_ar, hashtags, virtue=None):
     real = [v for v in verses if v["marker"]]
     v0, v1 = real[0], real[-1]
     rng_txt = f"{v0['ayah']}" if v0["ayah"] == v1["ayah"] else f"{v0['ayah']}-{v1['ayah']}"
     body = " ".join(f"{v['text']} ﴿{to_ar_digits(v['ayah'])}﴾" for v in real)
     if len(body) > 1200:
         body = body[:1200].rsplit(" ", 1)[0] + " …"
-    head = f"✨ {title}\n\n" if title else ""
+    head = f"✨ {title}\n" if title else ""
+    if virtue:
+        head += f"📜 {virtue}\n"
+    head += "\n" if head else ""
     return (f"{head}{body}\n\n"
             f"📖 {v0['surah_name_ar']} ({v0['surah_name_en']}) — الآيات {rng_txt}\n"
             f"🎙️ بصوت القارئ {reciter_ar}\n\n{hashtags}\n")
@@ -415,7 +419,7 @@ def main():
             st = args.start or 1
             en = args.end or (st if args.start else AYAH_COUNTS[args.surah - 1])
             match = [p for p in PASSAGES if p[:3] == (args.surah, st, en)]
-            fixed = match[0] if match else (args.surah, st, en, "")
+            fixed = match[0] if match else (args.surah, st, en, "", None)
         p, title, rk, verses, _ = choose(rng, history, args.reciter, tmp, args.max_sec, fixed)
         reciter_ar = RECITERS[rk][1]
 
@@ -434,7 +438,7 @@ def main():
         mp4 = os.path.join(args.out, "reel.mp4")
         total = render(verses, title, bgfile, theme, reciter_ar, args.handle, mp4, tmp, animate)
         with open(os.path.join(args.out, "caption.txt"), "w", encoding="utf-8") as f:
-            f.write(caption(verses, title, reciter_ar, args.hashtags))
+            f.write(caption(verses, title, reciter_ar, args.hashtags, p[4] if len(p) > 4 else None))
         meta = {"date": datetime.date.today().isoformat(), "surah": p[0], "start": p[1], "end": p[2],
                 "title": title, "reciter": rk, "background": bg_style, "seconds": round(total, 2)}
         with open(os.path.join(args.out, "meta.json"), "w", encoding="utf-8") as f:
