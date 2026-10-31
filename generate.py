@@ -23,7 +23,7 @@ import urllib.request
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from passages import PASSAGES
-import bgstyles
+import bgstyles, genbg, motion
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 W, H = 1080, 1920
@@ -250,39 +250,48 @@ def segments_from(verses):
     return segs
 
 
-def make_static_overlay(header, title, reciter_ar, handle, dest):
+def _soft_shadow(layer, color, radius=10, strength=170):
+    a = layer.split()[3].filter(ImageFilter.GaussianBlur(radius)).point(lambda v: min(255, v * strength // 100))
+    sh = Image.new("RGBA", layer.size, color + (0,))
+    sh.putalpha(a)
+    return Image.alpha_composite(sh, layer)
+
+
+def make_static_overlay(header, title, reciter_ar, handle, theme, dest):
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     gold = (238, 206, 128, 255)
     hf = font("Amiri-Bold.ttf", 54)
     hw = text_w(d, header, hf) + 90
-    d.rounded_rectangle([(W - hw) // 2, 120, (W + hw) // 2, 218], radius=49, fill=(0, 0, 0, 130))
+    d.rounded_rectangle([(W - hw) // 2, 120, (W + hw) // 2, 218], radius=49, fill=(0, 0, 0, 140))
     draw_centered(d, 127, header, hf, gold, shadow=False)
-    draw_centered(d, 232, "بصوت القارئ " + reciter_ar, font("Amiri-Regular.ttf", 40), (240, 240, 240, 255))
+    txt = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    t = ImageDraw.Draw(txt)
+    draw_centered(t, 232, "بصوت القارئ " + reciter_ar, font("Amiri-Regular.ttf", 40), theme["sub"] + (255,), shadow=False)
     if title:
-        draw_centered(d, 1700, title, font("Amiri-Bold.ttf", 44), gold)
+        draw_centered(t, 1700, title, font("Amiri-Bold.ttf", 44), theme["title"] + (255,), shadow=False)
     if handle:
-        draw_centered(d, H - 130, handle, font("Amiri-Regular.ttf", 34), (230, 230, 230, 210),
-                      rtl=False, shadow=False)
-    img.save(dest)
+        draw_centered(t, H - 130, handle, font("Amiri-Regular.ttf", 34), theme["sub"] + (230,), rtl=False, shadow=False)
+    txt = _soft_shadow(txt, theme["shadow"], 6, 150)
+    Image.alpha_composite(img, txt).save(dest)
     return dest
 
 
-def make_text_overlay(text, dest):
+def make_text_overlay(text, theme, dest):
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     box_w, box_h = W - 260, 1000
     f, lines, lh = fit_text(d, text, "AmiriQuran.ttf", box_w, box_h)
     top = 560 + (box_h - len(lines) * lh) // 2
     for i, ln in enumerate(lines):
-        draw_centered(d, top + i * lh, ln, f, (255, 255, 255, 255))
-    img.save(dest)
+        draw_centered(d, top + i * lh, ln, f, theme["verse"] + (255,), shadow=False)
+    _soft_shadow(img, theme["shadow"], 14, 230).save(dest)
     return dest
 
 
 # ---------------------------------------------------------------- render
 
-def render(verses, title, bg, reciter_ar, handle, out_mp4, tmp):
+def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=False):
     real = [v for v in verses if v["marker"]]
     a1, a2 = real[0]["ayah"], real[-1]["ayah"]
     rng_txt = to_ar_digits(a1) if a1 == a2 else f"{to_ar_digits(a1)}–{to_ar_digits(a2)}"
@@ -299,27 +308,41 @@ def render(verses, title, bg, reciter_ar, handle, out_mp4, tmp):
     total = duration(audio)
     segs = segments_from(verses)
 
-    inputs = ["-loop", "1", "-framerate", str(FPS), "-i", bg]
-    filt = [f"[0:v]scale={int(W*1.08)}:-2,"
-            f"crop={W}:{H}:'(in_w-{W})/2+sin(t/10)*18':'(in_h-{H})/2+cos(t/12)*12',setsar=1[bg]"]
+    if animate:
+        # photo/AI image -> gentle looping motion (dust in the light, breathing light, slow drift)
+        bgvid = motion.make_motion_video(bg, total, os.path.join(tmp, "bg.mp4"))
+        # soft dark glow behind the verse area so text stays readable on busy images
+        scrim = Image.new("L", (W, H), 0)
+        ImageDraw.Draw(scrim).rounded_rectangle([40, 470, W - 40, 1660], radius=200, fill=150)
+        scrim = scrim.filter(ImageFilter.GaussianBlur(90))
+        sc = Image.new("RGBA", (W, H), (0, 0, 0, 0)); sc.putalpha(scrim)
+        scrim_png = os.path.join(tmp, "scrim.png"); sc.save(scrim_png)
+        inputs = ["-i", bgvid, "-loop", "1", "-framerate", str(FPS), "-i", scrim_png]
+        filt = ["[0:v]eq=brightness=-0.04:saturation=1.05,vignette=angle=PI/4.5,setsar=1[bg0]",
+                "[bg0][1:v]overlay=0:0[bg]"]
+    else:
+        inputs = ["-loop", "1", "-framerate", str(FPS), "-i", bg]
+        filt = [f"[0:v]scale={int(W*1.08)}:-2,"
+                f"crop={W}:{H}:'(in_w-{W})/2+sin(t/10)*18':'(in_h-{H})/2+cos(t/12)*12',setsar=1[bg]"]
     last = "bg"
+    base = 2 if animate else 1          # index of the first verse overlay input
     for i, s in enumerate(segs):
-        ov = make_text_overlay(s["text"], os.path.join(tmp, f"ov{i}.png"))
+        ov = make_text_overlay(s["text"], theme, os.path.join(tmp, f"ov{i}.png"))
         inputs += ["-loop", "1", "-framerate", str(FPS), "-i", ov]
         st = s["start"]
         en = total if i == len(segs) - 1 else s["end"]
         fade = min(0.35, (en - st) / 4)
-        filt.append(f"[{i+1}:v]format=rgba,fade=in:st={st:.3f}:d={fade:.2f}:alpha=1,"
+        filt.append(f"[{i+base}:v]format=rgba,fade=in:st={st:.3f}:d={fade:.2f}:alpha=1,"
                     f"fade=out:st={en-fade:.3f}:d={fade:.2f}:alpha=1[o{i}]")
         filt.append(f"[{last}][o{i}]overlay=0:0:enable='between(t,{st:.3f},{en:.3f})'[v{i}]")
         last = f"v{i}"
-    static = make_static_overlay(header, title, reciter_ar, handle, os.path.join(tmp, "static.png"))
+    static = make_static_overlay(header, title, reciter_ar, handle, theme, os.path.join(tmp, "static.png"))
     inputs += ["-loop", "1", "-framerate", str(FPS), "-i", static]
-    filt.append(f"[{last}][{len(segs)+1}:v]overlay=0:0,"
+    filt.append(f"[{last}][{len(segs)+base}:v]overlay=0:0,"
                 f"fade=in:st=0:d=0.6,fade=out:st={total-0.8:.3f}:d=0.8,format=yuv420p[vout]")
     cmd = ["ffmpeg", "-y", "-v", "error", *inputs, "-i", audio,
            "-filter_complex", ";".join(filt),
-           "-map", "[vout]", "-map", f"{len(segs)+2}:a",
+           "-map", "[vout]", "-map", f"{len(segs)+base+1}:a",
            "-t", f"{total:.3f}", "-r", str(FPS),
            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-profile:v", "high",
            "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", out_mp4]
@@ -352,7 +375,7 @@ def main():
     ap.add_argument("--hashtags", default="#قرآن #القرآن_الكريم #تلاوة #آيات #quran #islam #reels")
     ap.add_argument("--history", default=os.path.join(HERE, "history.json"))
     ap.add_argument("--seed", default=None)
-    ap.add_argument("--bg-style", default="", help="one of: " + ", ".join(bgstyles.STYLES))
+    ap.add_argument("--bg-style", default="", help="force a drawn style instead of AI: " + ", ".join(bgstyles.ALL_STYLES))
     args = ap.parse_args()
 
     rng = random.Random(args.seed or time.time_ns())
@@ -375,15 +398,24 @@ def main():
         bg_dir = os.path.join(HERE, "backgrounds")
         photos = [os.path.join(bg_dir, f) for f in sorted(os.listdir(bg_dir))
                   if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))] if os.path.isdir(bg_dir) else []
-        bgfile = os.path.join(tmp, "bg.jpg")
-        if photos and rng.random() < 0.3:
-            make_photo_background(rng.choice(photos), bgfile)
-            bg_style = "photo"
-        else:
-            bg_style = bgstyles.make(rng, bgfile, args.bg_style or None)
+        animate, bg_style = False, None
+        if not args.bg_style and genbg.available():
+            try:
+                bgfile = os.path.join(tmp, "ai_bg.png")
+                scene = genbg.generate(rng, bgfile)
+                bg_style, theme, animate = "ai: " + scene[:60], bgstyles.LIGHT_TEXT, True
+                shutil.copy(bgfile, os.path.join(args.out, "background.png"))
+            except Exception as e:
+                print(f"AI background failed, using a stored one: {e}", file=sys.stderr)
+        if bg_style is None and photos and not args.bg_style:
+            bgfile = rng.choice(photos)
+            bg_style, theme, animate = "photo: " + os.path.basename(bgfile), bgstyles.LIGHT_TEXT, True
+        if bg_style is None:
+            bgfile = os.path.join(tmp, "bg.jpg")
+            bg_style, theme = bgstyles.make_themed(rng, bgfile, args.bg_style or None)
 
         mp4 = os.path.join(args.out, "reel.mp4")
-        total = render(verses, title, bgfile, reciter_ar, args.handle, mp4, tmp)
+        total = render(verses, title, bgfile, theme, reciter_ar, args.handle, mp4, tmp, animate)
         with open(os.path.join(args.out, "caption.txt"), "w", encoding="utf-8") as f:
             f.write(caption(verses, title, reciter_ar, args.hashtags))
         meta = {"date": datetime.date.today().isoformat(), "surah": p[0], "start": p[1], "end": p[2],

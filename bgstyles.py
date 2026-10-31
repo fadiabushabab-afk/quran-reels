@@ -292,3 +292,216 @@ def make(rng, dest, style=None):
     name = style or rng.choice(list(STYLES))
     STYLES[name](rng).convert("RGB").save(dest, quality=95)
     return name
+
+
+# ================================================================
+# Styles inspired by the user's "Holy Quran" mood board:
+# golden-hour skylines, arch windows onto a starry night, sunbeams
+# through lattice windows, and soft cream/misty skylines.
+# Each returns (image, theme). theme sets text colours for the overlay.
+# ================================================================
+
+LIGHT_TEXT = {"verse": (255, 255, 255), "sub": (240, 236, 226), "title": (238, 206, 128), "shadow": (0, 0, 0)}
+DARK_TEXT = {"verse": (48, 36, 24), "sub": (92, 74, 56), "title": (150, 108, 44), "shadow": (255, 255, 255)}
+
+
+def mix(c1, c2, k):
+    return tuple(int(c1[i] + (c2[i] - c1[i]) * k) for i in range(3))
+
+
+def skyline(d, base_y, scale, fill, rng, x0=-60, x1=W + 60):
+    """A random row of domes, minarets and flat roofs."""
+    x = x0
+    while x < x1:
+        kind = rng.random()
+        if kind < 0.35:
+            w = rng.randint(90, 170) * scale
+            dome(d, x + w / 2, base_y - rng.randint(40, 110) * scale, w, w * 0.8, fill)
+            d.rectangle([x, base_y - 110 * scale, x + w, H], fill=fill)
+            x += w + rng.randint(5, 40) * scale
+        elif kind < 0.55:
+            mw = rng.randint(16, 26) * scale
+            minaret(d, x + mw, base_y, rng.randint(220, 380) * scale, mw, fill)
+            x += mw * 3
+        else:
+            w = rng.randint(60, 150) * scale
+            d.rectangle([x, base_y - rng.randint(30, 120) * scale, x + w, H], fill=fill)
+            x += w
+    return d
+
+
+def birds(im, rng, cx, cy, n, col):
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    for _ in range(n):
+        x, y = cx + rng.gauss(0, 120), cy + rng.gauss(0, 50)
+        s = rng.uniform(5, 11)
+        d.line([(x - s, y - s * 0.4), (x, y), (x + s, y - s * 0.4)], fill=col + (200,), width=2)
+    return Image.alpha_composite(im, layer)
+
+
+def golden_hour(rng):
+    top = rng.choice([(46, 62, 92), (70, 64, 96), (40, 56, 70)])
+    im = vgradient([(0, top), (0.4, (176, 146, 116)), (0.66, (244, 190, 104)), (0.8, (252, 218, 150)), (1, (252, 218, 150))])
+    sx = rng.choice([W * 0.3, W * 0.68])
+    im = glow(im, sx, 1250, 460, (255, 214, 140), 200)
+    im = glow(im, sx, 1250, 70, (255, 244, 214), 255)
+    # soft clouds
+    cl = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    cd = ImageDraw.Draw(cl)
+    for _ in range(9):
+        y = rng.randint(200, 1100); x = rng.randint(-200, W)
+        cd.ellipse([x, y, x + rng.randint(300, 700), y + rng.randint(30, 70)], fill=(255, 236, 205, rng.randint(40, 90)))
+    im = Image.alpha_composite(im, cl.filter(ImageFilter.GaussianBlur(25)))
+    # three hazy layers (atmospheric perspective)
+    for base, col, a, blur, sc in ((1560, (214, 160, 104), 170, 3, 0.7), (1680, (150, 98, 58), 220, 1, 0.85)):
+        L = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        skyline(ImageDraw.Draw(L), base, sc, col + (a,), rng)
+        im = Image.alpha_composite(im, L.filter(ImageFilter.GaussianBlur(blur)))
+    near = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    nd = ImageDraw.Draw(near)
+    side = -1 if sx > W / 2 else 1
+    dome(nd, W / 2 + side * 170, 1690, 330, 250, (44, 26, 16, 255))
+    nd.rectangle([W / 2 + side * 170 - 230, 1690, W / 2 + side * 170 + 230, H], fill=(44, 26, 16, 255))
+    minaret(nd, W / 2 - side * 120, 1930, 760, 44, (44, 26, 16, 255))
+    skyline(nd, 1860, 0.9, (44, 26, 16, 255), rng)
+    im = Image.alpha_composite(im, near)
+    im = birds(im, rng, W / 2 - side * 260, 1100, 16, (60, 40, 30))
+    top_shade = vgradient([(0, (0, 0, 0)), (0.6, (0, 0, 0)), (1, (0, 0, 0))])
+    top_shade.putalpha(Image.linear_gradient("L").resize((W, H)).point(lambda v: int((255 - v) * 0.35)))
+    im = Image.alpha_composite(im, top_shade)
+    return vignette(im, 240), LIGHT_TEXT
+
+
+def arch_window_night(rng):
+    paper = rng.choice([(244, 238, 226), (238, 232, 222), (246, 240, 230)])
+    im = Image.new("RGBA", (W, H), paper + (255,))
+    noise = Image.effect_noise((W, H), 18).convert("L").point(lambda v: 128 + (v - 128) // 3)
+    im = Image.composite(im, Image.new("RGBA", (W, H), mix(paper, (200, 190, 170), 0.3) + (255,)),
+                         noise.point(lambda v: 255 - abs(v - 128)))
+    arch = pointed_arch(100, W - 100, 300, 1770)
+    sky = vgradient([(0, (18, 32, 70)), (0.45, (40, 78, 130)), (0.72, (120, 150, 170)), (0.88, (236, 206, 150)), (1, (236, 206, 150))])
+    sky = stars(sky, rng, 140, 1250)
+    sky = crescent(sky, W / 2 + rng.choice([-220, 220]), 560, 38)
+    for base, col, sc in ((1560, (96, 120, 150), 0.6), (1650, (52, 74, 110), 0.75), (1740, (24, 40, 72), 0.9)):
+        L = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        skyline(ImageDraw.Draw(L), base, sc, col + (255,), rng)
+        sky = Image.alpha_composite(sky, L)
+    # golden window lights in the nearest layer
+    lights = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ld = ImageDraw.Draw(lights)
+    for _ in range(26):
+        x, y = rng.randint(120, W - 120), rng.randint(1700, 1760)
+        ld.rectangle([x, y, x + 5, y + 8], fill=(255, 210, 120, 220))
+    sky = Image.alpha_composite(sky, lights)
+    sky = text_panel(sky, 600, 1500, 60)
+    mask = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(mask).polygon(arch, fill=255)
+    im.paste(sky, (0, 0), mask)
+    d = ImageDraw.Draw(im)
+    d.line(arch + [arch[0]], fill=GOLD + (255,), width=4)
+    theme = dict(LIGHT_TEXT, sub=(92, 74, 56))       # reciter line and handle sit on paper
+    return im, theme
+
+
+def lattice_window(d, poly, T, col, w):
+    xs = [p[0] for p in poly]; ys = [p[1] for p in poly]
+    for gy in range(int(min(ys)) - T, int(max(ys)) + T, T):
+        for gx in range(int(min(xs)) - T, int(max(xs)) + T, T):
+            d.polygon(star8(gx, gy, T * 0.5, T * 0.28), outline=col, width=w)
+            d.ellipse([gx - T * 0.1, gy - T * 0.1, gx + T * 0.1, gy + T * 0.1], outline=col, width=w)
+
+
+def sunbeam_lattice(rng):
+    wall = rng.choice([((34, 22, 14), (74, 50, 30)), ((24, 22, 26), (62, 52, 48)), ((40, 28, 16), (96, 68, 38))])
+    im = vgradient([(0, wall[0]), (0.55, wall[1]), (0.8, wall[0]), (1, mix(wall[1], (200, 150, 90), 0.25))])
+    side = rng.choice([-1, 1])
+    wx0 = W / 2 + side * 230 - 210
+    win = pointed_arch(wx0, wx0 + 420, 300, 1180)
+    # light coming through
+    light = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(light).polygon(win, fill=(255, 226, 168, 255))
+    lat = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    lattice_window(ImageDraw.Draw(lat), win, 68, wall[0] + (255,), 7)
+    m = Image.new("L", (W, H), 0); ImageDraw.Draw(m).polygon(win, fill=255)
+    light.paste(lat, (0, 0), Image.composite(lat.split()[3], Image.new("L", (W, H), 0), m))
+    im = glow(im, wx0 + 210, 760, 380, (255, 200, 120), 140)
+    # rays falling to the floor on the other side
+    rays = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    rd = ImageDraw.Draw(rays)
+    fx = W / 2 - side * 220
+    for i in range(7):
+        a = wx0 + 30 + i * 46
+        rd.polygon([(a, 420 + i * 60), (a + 36, 420 + i * 60), (fx + (i - 3) * 120 + 80, 1820), (fx + (i - 3) * 120, 1820)],
+                   fill=(255, 222, 160, 38))
+    im = Image.alpha_composite(im, rays.filter(ImageFilter.GaussianBlur(26)))
+    # patterned light on the floor: lattice seen in perspective
+    fl = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    fdraw = ImageDraw.Draw(fl)
+    trap = [(fx - 200, 1600), (fx + 200, 1600), (fx + 420, 1920), (fx - 420, 1920)]
+    fdraw.polygon(trap, fill=(255, 214, 150, 85))
+    pat = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    lattice_window(ImageDraw.Draw(pat), trap, 95, (255, 255, 255, 255), 12)
+    fmask = Image.new("L", (W, H), 0); ImageDraw.Draw(fmask).polygon(trap, fill=255)
+    holes = Image.composite(pat.split()[3], Image.new("L", (W, H), 0), fmask)
+    fl.putalpha(Image.composite(Image.new("L", (W, H), 0), fl.split()[3], holes))
+    im = Image.alpha_composite(im, fl.filter(ImageFilter.GaussianBlur(4)))
+    im = Image.alpha_composite(im, light)
+    fr = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ImageDraw.Draw(fr).line(win + [win[0]], fill=mix(wall[0], (0, 0, 0), 0.4) + (255,), width=16)
+    im = Image.alpha_composite(im, fr)
+    im = text_panel(im, 540, 1560, 70)
+    return vignette(im, 235), LIGHT_TEXT
+
+
+def soft_skyline(rng):
+    variant = rng.choice(["cream", "teal", "rose"])
+    if variant == "cream":
+        im = vgradient([(0, (238, 236, 232)), (0.7, (244, 241, 236)), (1, (232, 228, 222))])
+        layers = [((214, 210, 204), 0.7, 1580), ((196, 192, 186), 0.85, 1700), ((178, 174, 168), 1.0, 1830)]
+    elif variant == "teal":
+        im = vgradient([(0, (178, 186, 190)), (0.5, (226, 230, 230)), (0.75, (246, 246, 244)), (1, (246, 246, 244))])
+        layers = [((96, 150, 160), 0.7, 1590), ((36, 98, 116), 0.85, 1720), ((14, 52, 78), 1.0, 1850)]
+    else:
+        im = vgradient([(0, (236, 224, 222)), (0.7, (246, 238, 234)), (1, (238, 226, 220))])
+        layers = [((222, 196, 190), 0.7, 1580), ((200, 168, 160), 0.85, 1700), ((170, 132, 124), 1.0, 1830)]
+    # faint rosette ornament in a top corner
+    orn = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    od = ImageDraw.Draw(orn)
+    cx = rng.choice([80, W - 80])
+    for R in (300, 240, 180, 120):
+        od.polygon(star8(cx, 80, R, R * 0.6, math.pi / 16 * (R // 60)), outline=(255, 255, 255, 120), width=3)
+        od.polygon(star8(cx, 80, R, R * 0.6), outline=(150, 140, 130, 40), width=2)
+    im = Image.alpha_composite(im, orn)
+    for col, sc, base in layers:
+        L = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        skyline(ImageDraw.Draw(L), base, sc, col + (255,), rng)
+        im = Image.alpha_composite(im, L.filter(ImageFilter.GaussianBlur(1)))
+    if variant == "teal":
+        im = crescent(im, rng.randint(300, 780), 1400, 22, (14, 52, 78))
+    theme = dict(DARK_TEXT)
+    if variant == "teal":
+        theme["title"] = (238, 206, 128)              # title sits on the dark teal skyline
+    else:
+        theme["title"] = (120, 84, 40)
+    return im, theme
+
+
+INSPIRED = {
+    "golden_hour": golden_hour,
+    "arch_window_night": arch_window_night,
+    "sunbeam_lattice": sunbeam_lattice,
+    "soft_skyline": soft_skyline,
+}
+EARLIER = dict(STYLES)
+ALL_STYLES = dict(EARLIER, **INSPIRED)
+DEFAULT_POOL = list(EARLIER)         # drawn fallback when no AI image or photo is available
+
+
+def make_themed(rng, dest, style=None):
+    """Returns (style_name, theme)."""
+    name = style or rng.choice(DEFAULT_POOL)
+    out = ALL_STYLES[name](rng)
+    im, theme = out if isinstance(out, tuple) else (out, LIGHT_TEXT)
+    im.convert("RGB").save(dest, quality=95)
+    return name, theme
