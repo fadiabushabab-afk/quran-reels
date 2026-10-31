@@ -382,16 +382,19 @@ def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=F
     base = 2 if animate else 1          # index of the first verse overlay input
     for i, s in enumerate(segs):
         ov = make_text_overlay(s["text"], theme, os.path.join(tmp, f"ov{i}.png"))
-        inputs += ["-loop", "1", "-framerate", str(FPS), "-i", ov]
         st = s["start"]
         en = total if i == len(segs) - 1 else s["end"]
-        fade = min(0.35, (en - st) / 4)
-        filt.append(f"[{i+base}:v]format=rgba,fade=in:st={st:.3f}:d={fade:.2f}:alpha=1,"
-                    f"fade=out:st={en-fade:.3f}:d={fade:.2f}:alpha=1[o{i}]")
-        filt.append(f"[{last}][o{i}]overlay=0:0:enable='between(t,{st:.3f},{en:.3f})'[v{i}]")
+        dur = max(en - st, 0.1)
+        fade = min(0.35, dur / 4)
+        # each verse screen exists only for its own few seconds (fast even for long passages)
+        inputs += ["-loop", "1", "-framerate", str(FPS), "-t", f"{dur:.3f}", "-i", ov]
+        filt.append(f"[{i+base}:v]format=rgba,fade=in:st=0:d={fade:.2f}:alpha=1,"
+                    f"fade=out:st={dur-fade:.3f}:d={fade:.2f}:alpha=1,"
+                    f"setpts=PTS-STARTPTS+{st:.3f}/TB[o{i}]")
+        filt.append(f"[{last}][o{i}]overlay=0:0:eof_action=pass[v{i}]")
         last = f"v{i}"
     static = make_static_overlay(header, title, reciter_ar, handle, theme, os.path.join(tmp, "static.png"))
-    inputs += ["-loop", "1", "-framerate", str(FPS), "-i", static]
+    inputs += ["-loop", "1", "-framerate", str(FPS), "-t", f"{total:.3f}", "-i", static]
     filt.append(f"[{last}][{len(segs)+base}:v]overlay=0:0,"
                 f"fade=in:st=0:d=0.6,fade=out:st={total-0.8:.3f}:d=0.8,format=yuv420p[vout]")
     cmd = ["ffmpeg", "-y", "-v", "error", *inputs, "-i", audio,
