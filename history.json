@@ -95,17 +95,5 @@
   "reciter": "sudais",
   "background": "photo: 38c1ed0c2e1dd9390750459ddf81e619.jpg",
   "seconds": 81.5
- },
- {
-  "date": "2026-11-06",
-  "surah": 18,
-  "start": 101,
-  "end": 110,
-  "group": 1,
-  "friday": true,
-  "title": "آخر عشر آيات من سورة الكهف",
-  "reciter": "sudais",
-  "background": "photo: 45f0d036268f46050845ba74912025a5.jpg",
-  "seconds": 135.44
  }
 ]
