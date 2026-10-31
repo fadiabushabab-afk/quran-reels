@@ -41,7 +41,8 @@ def post_instagram(token, ig_id, video, caption):
     size = os.path.getsize(video)
     with open(video, "rb") as f:
         up = call("POST", f"https://rupload.facebook.com/ig-api-upload/{V}/{cid}", data=f.read(),
-                  headers={"Authorization": f"OAuth {token}", "offset": "0", "file_size": str(size)},
+                  headers={"Authorization": f"OAuth {token}", "offset": "0", "file_size": str(size),
+                           "Content-Type": "application/octet-stream"},
                   timeout=600)
     if not up.get("success", True):
         raise RuntimeError(f"Instagram upload failed: {up}")
@@ -69,7 +70,8 @@ def post_facebook(token, page_id, video, caption):
     size = os.path.getsize(video)
     with open(video, "rb") as f:
         call("POST", f"https://rupload.facebook.com/video-upload/{V}/{vid}", data=f.read(),
-             headers={"Authorization": f"OAuth {token}", "offset": "0", "file_size": str(size)},
+             headers={"Authorization": f"OAuth {token}", "offset": "0", "file_size": str(size),
+                      "Content-Type": "application/octet-stream"},
              timeout=600)
     call("POST", f"{GRAPH}/{page_id}/video_reels", {
         "upload_phase": "finish", "video_id": vid, "video_state": "PUBLISHED",

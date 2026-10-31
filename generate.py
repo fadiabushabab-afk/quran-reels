@@ -332,7 +332,8 @@ def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=F
 
     if animate:
         # photo/AI image -> gentle looping motion (dust in the light, breathing light, slow drift)
-        bgvid = motion.make_motion_video(bg, total, os.path.join(tmp, "bg.mp4"))
+        # render one seamless loop and repeat it (much faster than rendering every second)
+        bgvid = motion.make_motion_video(bg, motion.LOOP, os.path.join(tmp, "bg.mp4"))
         # soft dark glow behind the verse area so text stays readable on busy images
         scrim = Image.new("L", (W, H), 0)
         ImageDraw.Draw(scrim).rounded_rectangle([40, 470, W - 40, 1660], radius=200, fill=150)
@@ -340,7 +341,7 @@ def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=F
         scrim_rgb = (250, 244, 232) if theme.get("light_bg") else (0, 0, 0)
         sc = Image.new("RGBA", (W, H), scrim_rgb + (0,)); sc.putalpha(scrim)
         scrim_png = os.path.join(tmp, "scrim.png"); sc.save(scrim_png)
-        inputs = ["-i", bgvid, "-loop", "1", "-framerate", str(FPS), "-i", scrim_png]
+        inputs = ["-stream_loop", "-1", "-i", bgvid, "-loop", "1", "-framerate", str(FPS), "-i", scrim_png]
         grade = ("eq=saturation=1.03" if theme.get("light_bg")
                  else "eq=brightness=-0.04:saturation=1.05,vignette=angle=PI/4.5")
         filt = [f"[0:v]{grade},setsar=1[bg0]",
