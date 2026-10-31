@@ -80,12 +80,24 @@ def post_facebook(token, page_id, video, caption):
     return {"id": vid, "permalink": f"https://www.facebook.com/reel/{vid}"}
 
 
+def page_token_from(token, page_id):
+    """Accept a Page token or a (system-)user token: if the Page hands out its own token, use it."""
+    if not page_id:
+        return token
+    try:
+        t = call("GET", f"{GRAPH}/{page_id}", {"fields": "access_token", "access_token": token}).get("access_token")
+        return t or token
+    except Exception:
+        return token
+
+
 def main():
     token = os.environ.get("META_PAGE_TOKEN")
     ig_id = os.environ.get("IG_USER_ID")
     if not token or not ig_id:
         print("::warning title=Publishing skipped::META_PAGE_TOKEN / IG_USER_ID secrets are not set")
         return 0
+    token = page_token_from(token, os.environ.get("FB_PAGE_ID"))
     video = os.path.join(OUT, "reel.mp4")
     with open(os.path.join(OUT, "caption.txt"), encoding="utf-8") as f:
         caption = f.read().strip()[:2150]          # Instagram caption limit is 2,200 characters

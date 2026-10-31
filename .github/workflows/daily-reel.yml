@@ -69,6 +69,7 @@ jobs:
           retention-days: 14
 
       - name: Publish to Instagram / Facebook
+        id: pub
         if: github.event_name == 'schedule' || github.event.inputs.publish == 'true'
         env:
           META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
@@ -79,7 +80,8 @@ jobs:
 
 
       - name: Remember used passage
-        if: ${{ !cancelled() && steps.gen.outcome == 'success' }}
+        # a failed post is not recorded, so the same passage is retried next time
+        if: ${{ !cancelled() && steps.gen.outcome == 'success' && steps.pub.outcome != 'failure' }}
         run: |
           git config user.name  "quran-reels-bot"
           git config user.email "actions@users.noreply.github.com"
