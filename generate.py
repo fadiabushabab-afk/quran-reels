@@ -396,7 +396,7 @@ def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=F
     static = make_static_overlay(header, title, reciter_ar, handle, theme, os.path.join(tmp, "static.png"))
     inputs += ["-loop", "1", "-framerate", str(FPS), "-t", f"{total:.3f}", "-i", static]
     filt.append(f"[{last}][{len(segs)+base}:v]overlay=0:0,"
-                f"fade=in:st=0:d=0.6,fade=out:st={total-0.8:.3f}:d=0.8,format=yuv420p[vout]")
+                f"fade=out:st={total-0.8:.3f}:d=0.8,format=yuv420p[vout]")   # no fade-in: first frame = cover
     cmd = ["ffmpeg", "-y", "-v", "error", *inputs, "-i", audio,
            "-filter_complex", ";".join(filt),
            "-map", "[vout]", "-map", f"{len(segs)+base+1}:a",
