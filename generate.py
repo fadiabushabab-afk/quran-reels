@@ -23,7 +23,7 @@ import urllib.request
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from passages import PASSAGES
-import bgstyles, genbg, motion
+import bgstyles, motion
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 W, H = 1080, 1920
@@ -201,6 +201,27 @@ def draw_centered(draw, y, s, f, fill, rtl=True, shadow=True):
     draw.text((x, y), s, font=f, fill=fill, **kw)
 
 
+
+def pick_photo(photos, history):
+    """Least recently used image first, so every image gets a turn before any repeats."""
+    last = {}
+    for i, h in enumerate(history):
+        bg = h.get("background", "")
+        if bg.startswith("photo: "):
+            last[bg[7:]] = i
+    return min(photos, key=lambda p: (last.get(os.path.basename(p), -1), os.path.basename(p)))
+
+
+def theme_for(path):
+    """White text on dark images, dark text on light ones (judged on the verse area)."""
+    im = Image.open(path).convert("L")
+    w, h = im.size
+    centre = im.crop((int(w * 0.1), int(h * 0.25), int(w * 0.9), int(h * 0.85)))
+    mean = sum(i * c for i, c in enumerate(centre.histogram())) / (centre.width * centre.height)
+    theme = dict(bgstyles.DARK_TEXT if mean > 165 else bgstyles.LIGHT_TEXT)
+    theme["light_bg"] = mean > 165
+    return theme
+
 def make_photo_background(path, dest):
     im = Image.open(path).convert("RGB")
     s = max(W / im.width, H / im.height)
@@ -315,10 +336,13 @@ def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=F
         scrim = Image.new("L", (W, H), 0)
         ImageDraw.Draw(scrim).rounded_rectangle([40, 470, W - 40, 1660], radius=200, fill=150)
         scrim = scrim.filter(ImageFilter.GaussianBlur(90))
-        sc = Image.new("RGBA", (W, H), (0, 0, 0, 0)); sc.putalpha(scrim)
+        scrim_rgb = (250, 244, 232) if theme.get("light_bg") else (0, 0, 0)
+        sc = Image.new("RGBA", (W, H), scrim_rgb + (0,)); sc.putalpha(scrim)
         scrim_png = os.path.join(tmp, "scrim.png"); sc.save(scrim_png)
         inputs = ["-i", bgvid, "-loop", "1", "-framerate", str(FPS), "-i", scrim_png]
-        filt = ["[0:v]eq=brightness=-0.04:saturation=1.05,vignette=angle=PI/4.5,setsar=1[bg0]",
+        grade = ("eq=saturation=1.03" if theme.get("light_bg")
+                 else "eq=brightness=-0.04:saturation=1.05,vignette=angle=PI/4.5")
+        filt = [f"[0:v]{grade},setsar=1[bg0]",
                 "[bg0][1:v]overlay=0:0[bg]"]
     else:
         inputs = ["-loop", "1", "-framerate", str(FPS), "-i", bg]
@@ -375,7 +399,7 @@ def main():
     ap.add_argument("--hashtags", default="#قرآن #القرآن_الكريم #تلاوة #آيات #quran #islam #reels")
     ap.add_argument("--history", default=os.path.join(HERE, "history.json"))
     ap.add_argument("--seed", default=None)
-    ap.add_argument("--bg-style", default="", help="force a drawn style instead of AI: " + ", ".join(bgstyles.ALL_STYLES))
+    ap.add_argument("--bg-style", default="", help="force a drawn style instead of photos: " + ", ".join(bgstyles.ALL_STYLES))
     args = ap.parse_args()
 
     rng = random.Random(args.seed or time.time_ns())
@@ -399,18 +423,11 @@ def main():
         photos = [os.path.join(bg_dir, f) for f in sorted(os.listdir(bg_dir))
                   if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))] if os.path.isdir(bg_dir) else []
         animate, bg_style = False, None
-        if not args.bg_style and genbg.available():
-            try:
-                bgfile = os.path.join(tmp, "ai_bg.png")
-                scene = genbg.generate(rng, bgfile)
-                bg_style, theme, animate = "ai: " + scene[:60], bgstyles.LIGHT_TEXT, True
-                shutil.copy(bgfile, os.path.join(args.out, "background.png"))
-            except Exception as e:
-                print(f"AI background failed, using a stored one: {e}", file=sys.stderr)
-        if bg_style is None and photos and not args.bg_style:
-            bgfile = rng.choice(photos)
-            bg_style, theme, animate = "photo: " + os.path.basename(bgfile), bgstyles.LIGHT_TEXT, True
-        if bg_style is None:
+        if photos and not args.bg_style:
+            bgfile = pick_photo(photos, history)
+            theme = theme_for(bgfile)
+            bg_style, animate = "photo: " + os.path.basename(bgfile), True
+        else:
             bgfile = os.path.join(tmp, "bg.jpg")
             bg_style, theme = bgstyles.make_themed(rng, bgfile, args.bg_style or None)
 

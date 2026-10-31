@@ -35,10 +35,6 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Generate reel
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL || 'gpt-image-2' }}
-          OPENAI_IMAGE_QUALITY: ${{ vars.OPENAI_IMAGE_QUALITY || 'medium' }}
         run: |
           python -c "from PIL import features; print('raqm:', features.check('raqm'))"
           set +e

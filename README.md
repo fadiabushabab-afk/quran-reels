@@ -7,14 +7,11 @@ Makes a daily 1080x1920 Quran video.
   before any repeats. Edit `passages.py` to add or remove passages.
 - **Reciter:** random each day from 8 reciters (if a passage is longer than 88 s with one
   reciter, another is tried; Facebook Reels allow up to 90 s).
-- **Background:** a fresh AI image every day from OpenAI's image API (the model behind ChatGPT
-  images), in the warm golden style of the user's mood board (`genbg.py` lists the scenes).
-  The image is then animated (`motion.py`): dust drifting in the light, breathing light and a slow
-  camera drift, all looping seamlessly. Needs the repository secret `OPENAI_API_KEY`.
-  If no key is set or the API fails, a photo from `backgrounds/` is used (also animated), and
-  failing that a drawn Islamic style from `bgstyles.py`.
-  Settings (repository variables): `OPENAI_IMAGE_MODEL` (default gpt-image-2),
-  `OPENAI_IMAGE_QUALITY` (low / medium / high, default medium).
+- **Background:** an image from `backgrounds/` (the user's library, synced from their
+  "Holy Quran" folder). The least recently used image is chosen, so all get a turn. Each image is
+  animated by `motion.py`: dust drifting in the light, breathing light and a slow camera drift,
+  looping seamlessly. Text is white on dark images and dark brown on light ones, with a soft glow
+  behind the verses. If the folder is empty, a drawn Islamic style from `bgstyles.py` is used.
 
 - Audio: everyayah.com (per-verse MP3, choice of reciters)
 - Text: api.alquran.cloud (Uthmani script)
