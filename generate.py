@@ -22,7 +22,8 @@ import urllib.request
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-from passages import PASSAGES
+from passages import PASSAGES, FRIDAY
+from zoneinfo import ZoneInfo
 import bgstyles, motion
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -103,16 +104,43 @@ def load_history(path):
     return []
 
 
-def order_candidates(rng, history):
+def order_candidates(rng, history, pool=None):
     """Passages never used first (shuffled), then the least recently used."""
+    pool = PASSAGES if pool is None else pool
     last_used = {}
     for i, h in enumerate(history):
         last_used[(h["surah"], h["start"], h["end"])] = i
-    unused = [p for p in PASSAGES if (p[0], p[1], p[2]) not in last_used]
-    used = [p for p in PASSAGES if (p[0], p[1], p[2]) in last_used]
+    unused = [p for p in pool if (p[0], p[1], p[2]) not in last_used]
+    used = [p for p in pool if (p[0], p[1], p[2]) in last_used]
     rng.shuffle(unused)
     used.sort(key=lambda p: last_used[(p[0], p[1], p[2])])
     return unused + used
+
+
+def group_of(entry):
+    for p in PASSAGES:
+        if p[:3] == (entry.get("surah"), entry.get("start"), entry.get("end")):
+            return p[5]
+    return None
+
+
+def daily_candidates(rng, history, today):
+    """Fridays: first/last ten verses of Al-Kahf (alternating).
+    Other days: rotate groups 1 (virtue) -> 2 (short surah) -> 3 (thematic)."""
+    if today.weekday() == 4:                       # Friday
+        return order_candidates(rng, history, FRIDAY), "friday"
+    last = None
+    for h in reversed(history):                    # last non-Friday group used
+        if h.get("friday"):
+            continue
+        last = h.get("group") or group_of(h)
+        if last:
+            break
+    nxt = 1 if last in (None, 3) else last + 1
+    weekday = [p for p in PASSAGES if p not in FRIDAY]      # Al-Kahf ten verses are kept for Fridays
+    first = order_candidates(rng, history, [p for p in weekday if p[5] == nxt])
+    rest = [p for p in order_candidates(rng, history, weekday) if p[5] != nxt]
+    return first + rest, nxt
 
 
 def build_passage(surah, start, end, reciter_key, tmp, max_sec):
@@ -135,11 +163,11 @@ def build_passage(surah, start, end, reciter_key, tmp, max_sec):
     return verses, total
 
 
-def choose(rng, history, reciter_arg, tmp, max_sec, fixed=None):
+def choose(rng, history, reciter_arg, tmp, max_sec, fixed=None, today=None):
     """Pick passage + reciter. If the recitation is longer than max_sec,
-    try the other reciters, then the next passage."""
+    try another reciter, then the next passage."""
     keys = list(RECITERS)
-    candidates = [fixed] if fixed else order_candidates(rng, history)
+    candidates = [fixed] if fixed else daily_candidates(rng, history, today)[0]
     for p in candidates[:60]:
         surah, start, end = p[0], p[1], p[2]
         title = p[3] if len(p) > 3 else ""
@@ -399,7 +427,9 @@ def main():
     ap.add_argument("--out", default=os.path.join(HERE, "out"))
     ap.add_argument("--reciter", default="random", help="key from RECITERS, or 'random'")
     ap.add_argument("--surah", type=int); ap.add_argument("--start", type=int); ap.add_argument("--end", type=int)
-    ap.add_argument("--max-sec", type=float, default=88, help="Facebook Reels limit is 90 s")
+    ap.add_argument("--max-sec", type=float, default=175,
+                    help="longest video (Instagram); Facebook only gets videos of 90 s or less")
+    ap.add_argument("--date", default=None, help="pretend today is YYYY-MM-DD (testing)")
     ap.add_argument("--handle", default="", help="text shown at the bottom, e.g. @myaccount")
     ap.add_argument("--hashtags", default="#قرآن #القرآن_الكريم #تلاوة #آيات #quran #islam #reels")
     ap.add_argument("--history", default=os.path.join(HERE, "history.json"))
@@ -420,8 +450,10 @@ def main():
             st = args.start or 1
             en = args.end or (st if args.start else AYAH_COUNTS[args.surah - 1])
             match = [p for p in PASSAGES if p[:3] == (args.surah, st, en)]
-            fixed = match[0] if match else (args.surah, st, en, "", None)
-        p, title, rk, verses, _ = choose(rng, history, args.reciter, tmp, args.max_sec, fixed)
+            fixed = match[0] if match else (args.surah, st, en, "", None, None)
+        today = (datetime.date.fromisoformat(args.date) if args.date
+                 else datetime.datetime.now(ZoneInfo("Asia/Baghdad")).date())
+        p, title, rk, verses, _ = choose(rng, history, args.reciter, tmp, args.max_sec, fixed, today)
         reciter_ar = RECITERS[rk][1]
 
         bg_dir = os.path.join(HERE, "backgrounds")
@@ -440,7 +472,8 @@ def main():
         total = render(verses, title, bgfile, theme, reciter_ar, args.handle, mp4, tmp, animate)
         with open(os.path.join(args.out, "caption.txt"), "w", encoding="utf-8") as f:
             f.write(caption(verses, title, reciter_ar, args.hashtags, p[4] if len(p) > 4 else None))
-        meta = {"date": datetime.date.today().isoformat(), "surah": p[0], "start": p[1], "end": p[2],
+        meta = {"date": today.isoformat(), "surah": p[0], "start": p[1], "end": p[2],
+                "group": p[5] if len(p) > 5 else None, "friday": today.weekday() == 4 and not args.surah,
                 "title": title, "reciter": rk, "background": bg_style, "seconds": round(total, 2)}
         with open(os.path.join(args.out, "meta.json"), "w", encoding="utf-8") as f:
             json.dump(meta, f, ensure_ascii=False, indent=2)

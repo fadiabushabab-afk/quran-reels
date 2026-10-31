@@ -100,8 +100,17 @@ def main():
         results["instagram"] = {"error": str(e)}
         print("::error title=Instagram post failed::" + str(e).replace("\n", " "))
 
+    seconds = 0
+    try:
+        with open(os.path.join(OUT, "meta.json"), encoding="utf-8") as f:
+            seconds = float(json.load(f).get("seconds", 0))
+    except Exception:
+        pass
     page_id = os.environ.get("FB_PAGE_ID")
-    if page_id and "facebook" in platforms:
+    if page_id and "facebook" in platforms and seconds > 90:
+        results["facebook"] = {"skipped": f"video is {seconds:.0f} s; Facebook Reels allow 90 s"}
+        print(f"::notice title=Facebook skipped::video is {seconds:.0f} s (Facebook Reels allow 90 s)")
+    elif page_id and "facebook" in platforms:
         try:
             results["facebook"] = post_facebook(token, page_id, video, caption)
             print("::notice title=Posted to Facebook::" + str(results["facebook"]["permalink"]))

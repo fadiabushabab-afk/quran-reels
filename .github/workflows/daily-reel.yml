@@ -15,6 +15,9 @@ on:
       platforms:
         description: "Where to post (comma separated)"
         default: "instagram,facebook"
+      date:
+        description: "Test only: pretend today is YYYY-MM-DD (empty = real date)"
+        default: ""
 
 permissions:
   contents: write             # to commit history.json
@@ -47,6 +50,7 @@ jobs:
           python -c "from PIL import features; print('raqm:', features.check('raqm'))"
           set +e
           python generate.py --reciter "${{ github.event.inputs.reciter || 'random' }}" \
+                             ${{ github.event.inputs.date && format('--date {0}', github.event.inputs.date) || '' }} \
                              --handle "${{ vars.HANDLE || '@quran_reflections_waqf' }}" 2> err.txt
           code=$?
           set -e

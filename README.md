@@ -2,6 +2,9 @@
 
 Makes a daily 1080x1920 Quran video.
 
+- **Daily order:** groups rotate (virtue passage → short surah → thematic passage); Fridays use
+  the first or last ten verses of Al-Kahf, alternating. Videos may run up to 3 minutes on Instagram;
+  Facebook only receives videos of 90 seconds or less.
 - **Passages:** chosen from `passages.py`: short surahs in full (opened with the basmala) and
   well-known verses of great virtue, always complete in meaning. Every passage is used once
   before any repeats. Edit `passages.py` to add or remove passages.
