@@ -7,8 +7,10 @@ Makes a daily 1080x1920 Quran video.
   before any repeats. Edit `passages.py` to add or remove passages.
 - **Reciter:** random each day from 8 reciters (if a passage is longer than 88 s with one
   reciter, another is tried; Facebook Reels allow up to 90 s).
-- **Background:** generated Islamic geometric pattern (8-pointed star lattice) with a mihrab arch,
-  in one of five colour schemes. Photos you add to `backgrounds/` are used on about half of the days.
+- **Background:** one of four original Islamic styles drawn in `bgstyles.py`, each with colour
+  variations: mosque silhouette at twilight with crescent and stars, hanging lanterns, ornate gold
+  frame with rosettes, and 8-pointed-star geometric pattern with a mihrab arch.
+  Photos you add to `backgrounds/` are used on about 30% of days.
 
 - Audio: everyayah.com (per-verse MP3, choice of reciters)
 - Text: api.alquran.cloud (Uthmani script)

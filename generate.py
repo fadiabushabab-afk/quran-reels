@@ -23,6 +23,7 @@ import urllib.request
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from passages import PASSAGES
+import bgstyles
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 W, H = 1080, 1920
@@ -200,88 +201,6 @@ def draw_centered(draw, y, s, f, fill, rtl=True, shadow=True):
     draw.text((x, y), s, font=f, fill=fill, **kw)
 
 
-PALETTES = [  # (dark, lighter, line colour)
-    ((6, 38, 28), (14, 70, 52), (212, 175, 95)),     # emerald & gold
-    ((8, 20, 46), (20, 46, 92), (212, 175, 95)),     # navy & gold
-    ((40, 10, 18), (82, 24, 36), (222, 186, 110)),   # burgundy & gold
-    ((5, 44, 48), (12, 84, 88), (236, 222, 186)),    # teal & cream
-    ((22, 16, 10), (58, 42, 26), (212, 175, 95)),    # dark walnut & gold
-]
-
-
-def star_points(cx, cy, R, r, rot=0.0):
-    pts = []
-    for k in range(16):
-        ang = rot + k * math.pi / 8
-        rad = R if k % 2 == 0 else r
-        pts.append((cx + rad * math.cos(ang), cy + rad * math.sin(ang)))
-    return pts
-
-
-def pointed_arch(x0, x1, y_apex, y_bottom, ratio=0.78, n=60):
-    """Polygon of a two-centred pointed (mihrab) arch with its apex at y_apex."""
-    w = x1 - x0
-    R = ratio * w                      # radius > w/2 gives a pointed top
-    cx = (x0 + x1) / 2
-    th_end = math.acos((w / 2 - R) / R)        # angle where the arc reaches the centre line
-    rise = R * math.sin(th_end)
-    ys = y_apex + rise                         # springing line
-    left = []
-    for i in range(n + 1):
-        th = math.pi - (math.pi - th_end) * i / n
-        left.append((x0 + R + R * math.cos(th), ys - R * math.sin(th)))
-    right = [(2 * cx - x, y) for x, y in left]
-    return [(x0, y_bottom)] + left + right[::-1] + [(x1, y_bottom)]
-
-
-def make_pattern_background(rng, dest):
-    dark, light, line = rng.choice(PALETTES)
-    im = Image.new("RGB", (W, H))
-    px = ImageDraw.Draw(im)
-    for y in range(H):   # radial-ish vertical gradient: lighter in the middle
-        k = 1 - abs(y / H - 0.45) * 1.6
-        k = max(0.0, min(1.0, k))
-        px.line([(0, y), (W, y)], fill=tuple(int(dark[i] + (light[i] - dark[i]) * k) for i in range(3)))
-
-    # 8-pointed star lattice (khatam pattern)
-    pat = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    g = ImageDraw.Draw(pat)
-    T = rng.choice([150, 170, 190])
-    col = line + (70,)
-    off = rng.randint(0, T)
-    for gy in range(-T, H + T, T):
-        for gx in range(-T, W + T, T):
-            cx, cy = gx + off % T, gy + off % T
-            g.polygon(star_points(cx, cy, T * 0.5, T * 0.27, rot=0), outline=col, width=3)
-            g.polygon(star_points(cx, cy, T * 0.26, T * 0.16, rot=math.pi / 8), outline=line + (45,), width=2)
-            # small rotated square where four stars meet
-            qx, qy, q = cx + T / 2, cy + T / 2, T * 0.17
-            g.polygon([(qx, qy - q), (qx + q, qy), (qx, qy + q), (qx - q, qy)], outline=line + (55,), width=2)
-    im = Image.alpha_composite(im.convert("RGBA"), pat)
-
-    # mihrab arch framing the text: darker inside, thin gold border
-    arch = pointed_arch(90, W - 90, 330, 1640)
-    shade = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    sd = ImageDraw.Draw(shade)
-    sd.polygon(arch, fill=dark + (205,))
-    shade = shade.filter(ImageFilter.GaussianBlur(6))
-    im = Image.alpha_composite(im, shade)
-    bd = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    ImageDraw.Draw(bd).line(arch + [arch[0]], fill=line + (190,), width=4)
-    inner = pointed_arch(112, W - 112, 362, 1618)
-    ImageDraw.Draw(bd).line(inner + [inner[0]], fill=line + (90,), width=2)
-    im = Image.alpha_composite(im, bd)
-
-    # soft vignette
-    vig = Image.new("L", (W, H), 0)
-    ImageDraw.Draw(vig).ellipse([-300, -200, W + 300, H + 200], fill=255)
-    vig = vig.filter(ImageFilter.GaussianBlur(160))
-    black = Image.new("RGBA", (W, H), (0, 0, 0, 255))
-    im = Image.composite(im, black, vig).convert("RGB")
-    im.save(dest, quality=95)
-    return dest
-
-
 def make_photo_background(path, dest):
     im = Image.open(path).convert("RGB")
     s = max(W / im.width, H / im.height)
@@ -433,6 +352,7 @@ def main():
     ap.add_argument("--hashtags", default="#قرآن #القرآن_الكريم #تلاوة #آيات #quran #islam #reels")
     ap.add_argument("--history", default=os.path.join(HERE, "history.json"))
     ap.add_argument("--seed", default=None)
+    ap.add_argument("--bg-style", default="", help="one of: " + ", ".join(bgstyles.STYLES))
     args = ap.parse_args()
 
     rng = random.Random(args.seed or time.time_ns())
@@ -456,17 +376,18 @@ def main():
         photos = [os.path.join(bg_dir, f) for f in sorted(os.listdir(bg_dir))
                   if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))] if os.path.isdir(bg_dir) else []
         bgfile = os.path.join(tmp, "bg.jpg")
-        if photos and rng.random() < 0.5:
+        if photos and rng.random() < 0.3:
             make_photo_background(rng.choice(photos), bgfile)
+            bg_style = "photo"
         else:
-            make_pattern_background(rng, bgfile)
+            bg_style = bgstyles.make(rng, bgfile, args.bg_style or None)
 
         mp4 = os.path.join(args.out, "reel.mp4")
         total = render(verses, title, bgfile, reciter_ar, args.handle, mp4, tmp)
         with open(os.path.join(args.out, "caption.txt"), "w", encoding="utf-8") as f:
             f.write(caption(verses, title, reciter_ar, args.hashtags))
         meta = {"date": datetime.date.today().isoformat(), "surah": p[0], "start": p[1], "end": p[2],
-                "title": title, "reciter": rk, "seconds": round(total, 2)}
+                "title": title, "reciter": rk, "background": bg_style, "seconds": round(total, 2)}
         with open(os.path.join(args.out, "meta.json"), "w", encoding="utf-8") as f:
             json.dump(meta, f, ensure_ascii=False, indent=2)
         if not args.surah and args.history:
