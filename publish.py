@@ -6,7 +6,7 @@ Environment (GitHub secrets):
   META_PAGE_TOKEN   Page access token (from a long-lived user token -> does not expire)
   IG_USER_ID        Instagram professional account id (instagram_business_account.id)
   FB_PAGE_ID        Facebook Page id (optional; Facebook posting needs pages_manage_posts)
-  POST_TO_FACEBOOK  "true" to also post to the Page (default: false)
+  PLATFORMS         comma list: instagram,facebook (default both)
   GRAPH_VERSION     Graph API version (default v26.0)
 
 Uses Meta's resumable upload, so the video is sent straight from the runner;
@@ -89,17 +89,19 @@ def main():
     with open(os.path.join(OUT, "caption.txt"), encoding="utf-8") as f:
         caption = f.read().strip()[:2150]          # Instagram caption limit is 2,200 characters
 
+    platforms = {x.strip().lower() for x in os.environ.get("PLATFORMS", "instagram,facebook").split(",")}
     results, failed = {}, False
-    try:
+    if "instagram" in platforms:
+      try:
         results["instagram"] = post_instagram(token, ig_id, video, caption)
         print("::notice title=Posted to Instagram::" + str(results["instagram"]["permalink"]))
-    except Exception as e:
+      except Exception as e:
         failed = True
         results["instagram"] = {"error": str(e)}
         print("::error title=Instagram post failed::" + str(e).replace("\n", " "))
 
     page_id = os.environ.get("FB_PAGE_ID")
-    if page_id and os.environ.get("POST_TO_FACEBOOK", "false").lower() == "true":
+    if page_id and "facebook" in platforms:
         try:
             results["facebook"] = post_facebook(token, page_id, video, caption)
             print("::notice title=Posted to Facebook::" + str(results["facebook"]["permalink"]))

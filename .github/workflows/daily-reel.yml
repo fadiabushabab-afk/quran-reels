@@ -9,9 +9,12 @@ on:
         description: "Reciter key (or random)"
         default: "random"
       publish:
-        description: "Post this video to Instagram (and Facebook if enabled)?"
+        description: "Post this video?"
         type: boolean
         default: false
+      platforms:
+        description: "Where to post (comma separated)"
+        default: "instagram,facebook"
 
 permissions:
   contents: write             # to commit history.json
@@ -67,7 +70,7 @@ jobs:
           META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-          POST_TO_FACEBOOK: ${{ vars.POST_TO_FACEBOOK || 'false' }}
+          PLATFORMS: ${{ github.event.inputs.platforms || 'instagram,facebook' }}
         run: python publish.py out
 
 
