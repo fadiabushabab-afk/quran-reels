@@ -39,7 +39,7 @@ jobs:
           python -c "from PIL import features; print('raqm:', features.check('raqm'))"
           set +e
           python generate.py --reciter "${{ github.event.inputs.reciter || 'random' }}" \
-                             --handle "${{ vars.HANDLE }}" 2> err.txt
+                             --handle "${{ vars.HANDLE || '@quran_reflections_waqf' }}" 2> err.txt
           code=$?
           set -e
           cat err.txt
