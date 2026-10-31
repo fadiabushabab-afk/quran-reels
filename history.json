@@ -35,5 +35,15 @@
   "reciter": "dussary",
   "background": "lanterns",
   "seconds": 51.85
+ },
+ {
+  "date": "2026-10-31",
+  "surah": 67,
+  "start": 1,
+  "end": 4,
+  "title": "مطلع سورة الملك",
+  "reciter": "shuraym",
+  "background": "gold_frame",
+  "seconds": 43.41
  }
 ]
