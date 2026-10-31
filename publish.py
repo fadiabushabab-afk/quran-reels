@@ -81,7 +81,7 @@ def main():
     token = os.environ.get("META_PAGE_TOKEN")
     ig_id = os.environ.get("IG_USER_ID")
     if not token or not ig_id:
-        print("Publishing skipped: META_PAGE_TOKEN / IG_USER_ID secrets are not set yet.")
+        print("::warning title=Publishing skipped::META_PAGE_TOKEN / IG_USER_ID secrets are not set")
         return 0
     video = os.path.join(OUT, "reel.mp4")
     with open(os.path.join(OUT, "caption.txt"), encoding="utf-8") as f:
@@ -90,7 +90,7 @@ def main():
     results, failed = {}, False
     try:
         results["instagram"] = post_instagram(token, ig_id, video, caption)
-        print("Instagram:", results["instagram"]["permalink"])
+        print("::notice title=Posted to Instagram::" + str(results["instagram"]["permalink"]))
     except Exception as e:
         failed = True
         results["instagram"] = {"error": str(e)}
@@ -100,7 +100,7 @@ def main():
     if page_id and os.environ.get("POST_TO_FACEBOOK", "false").lower() == "true":
         try:
             results["facebook"] = post_facebook(token, page_id, video, caption)
-            print("Facebook:", results["facebook"]["permalink"])
+            print("::notice title=Posted to Facebook::" + str(results["facebook"]["permalink"]))
         except Exception as e:
             results["facebook"] = {"error": str(e)}          # Facebook failure doesn't fail the run
             print("::warning title=Facebook post failed::" + str(e).replace("\n", " "))
