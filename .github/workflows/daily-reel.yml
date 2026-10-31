@@ -8,6 +8,10 @@ on:
       reciter:
         description: "Reciter key (or random)"
         default: "random"
+      publish:
+        description: "Post this video to Instagram (and Facebook if enabled)?"
+        type: boolean
+        default: false
 
 permissions:
   contents: write             # to commit history.json
@@ -35,6 +39,7 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Generate reel
+        id: gen
         run: |
           python -c "from PIL import features; print('raqm:', features.check('raqm'))"
           set +e
@@ -56,9 +61,18 @@ jobs:
           path: out/
           retention-days: 14
 
-      # Posting to Facebook / Instagram / TikTok is added in a later step.
+      - name: Publish to Instagram / Facebook
+        if: github.event_name == 'schedule' || github.event.inputs.publish == 'true'
+        env:
+          META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          POST_TO_FACEBOOK: ${{ vars.POST_TO_FACEBOOK || 'false' }}
+        run: python publish.py out
+
 
       - name: Remember used passage
+        if: ${{ !cancelled() && steps.gen.outcome == 'success' }}
         run: |
           git config user.name  "quran-reels-bot"
           git config user.email "actions@users.noreply.github.com"
