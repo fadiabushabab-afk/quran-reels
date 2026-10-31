@@ -97,7 +97,8 @@ def main():
     if not token or not ig_id:
         print("::warning title=Publishing skipped::META_PAGE_TOKEN / IG_USER_ID secrets are not set")
         return 0
-    token = page_token_from(token, os.environ.get("FB_PAGE_ID"))
+    user_token = token                                   # system-user / user token (best for Instagram)
+    token = page_token_from(token, os.environ.get("FB_PAGE_ID"))   # Page token (needed for Facebook)
     video = os.path.join(OUT, "reel.mp4")
     with open(os.path.join(OUT, "caption.txt"), encoding="utf-8") as f:
         caption = f.read().strip()[:2150]          # Instagram caption limit is 2,200 characters
@@ -106,7 +107,13 @@ def main():
     results, failed = {}, False
     if "instagram" in platforms:
       try:
-        results["instagram"] = post_instagram(token, ig_id, video, caption)
+        try:
+            results["instagram"] = post_instagram(user_token, ig_id, video, caption)
+        except Exception as first:
+            if token == user_token:
+                raise
+            print(f"::warning title=Instagram retry with Page token::{str(first)[:200]}")
+            results["instagram"] = post_instagram(token, ig_id, video, caption)
         print("::notice title=Posted to Instagram::" + str(results["instagram"]["permalink"]))
       except Exception as e:
         failed = True
