@@ -35,8 +35,7 @@ def post_instagram(token, ig_id, video, caption):
     # 1. resumable container
     c = call("POST", f"{GRAPH}/{ig_id}/media", {
         "media_type": "REELS", "upload_type": "resumable", "caption": caption,
-        "share_to_feed": "true", "thumb_offset": "2500",      # cover = frame at 2.5 s (verse on screen)
-        "access_token": token})
+        "share_to_feed": "true", "access_token": token})   # cover = first frame (video no longer starts black)
     cid = c["id"]
     # 2. upload the bytes
     size = os.path.getsize(video)
