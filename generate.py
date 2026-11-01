@@ -353,7 +353,7 @@ def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=F
             f.write(f"file '{v['audio']}'\n")
     audio = os.path.join(tmp, "audio.m4a")
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", lst,
-                    "-af", "apad=pad_dur=1.2", "-c:a", "aac", "-b:a", "160k", "-ar", "44100", audio],
+                    "-af", "apad=pad_dur=1.2", "-c:a", "aac", "-b:a", "160k", "-ar", "48000", audio],
                    check=True)
     total = duration(audio)
     segs = segments_from(verses)
@@ -401,7 +401,8 @@ def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=F
            "-filter_complex", ";".join(filt),
            "-map", "[vout]", "-map", f"{len(segs)+base+1}:a",
            "-t", f"{total:.3f}", "-r", str(FPS),
-           "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-profile:v", "high",
+           "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-profile:v", "high", "-level", "4.1",
+           "-maxrate", "10M", "-bufsize", "20M", "-g", str(FPS * 2),      # Instagram: capped bitrate, keyframe every 2 s
            "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", out_mp4]
     subprocess.run(cmd, check=True)
     return total
@@ -477,12 +478,11 @@ def main():
             f.write(caption(verses, title, reciter_ar, args.hashtags, p[4] if len(p) > 4 else None))
         meta = {"date": today.isoformat(), "surah": p[0], "start": p[1], "end": p[2],
                 "group": p[5] if len(p) > 5 else None, "friday": today.weekday() == 4 and not args.surah,
-                "title": title, "reciter": rk, "background": bg_style, "seconds": round(total, 2)}
+                "title": title, "reciter": rk, "background": bg_style, "seconds": round(total, 2),
+                "fixed": bool(args.surah)}
+        # history.json is written by publish.py, only after something was actually posted
         with open(os.path.join(args.out, "meta.json"), "w", encoding="utf-8") as f:
             json.dump(meta, f, ensure_ascii=False, indent=2)
-        if not args.surah and args.history:
-            with open(args.history, "w", encoding="utf-8") as f:
-                json.dump(history + [meta], f, ensure_ascii=False, indent=1)
         print(json.dumps(meta, ensure_ascii=False))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

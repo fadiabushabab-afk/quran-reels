@@ -1,72 +1,5 @@
 [
  {
-  "date": "2026-10-30",
-  "surah": 97,
-  "surah_name": "Al-Qadr",
-  "start": 4,
-  "end": 5,
-  "reciter": "alafasy",
-  "seconds": 16.28
- },
- {
-  "date": "2026-10-30",
-  "surah": 34,
-  "surah_name": "Saba",
-  "start": 49,
-  "end": 50,
-  "reciter": "abdulbasit",
-  "seconds": 29.65
- },
- {
-  "date": "2026-10-30",
-  "surah": 2,
-  "start": 152,
-  "end": 152,
-  "title": "فاذكروني أذكركم",
-  "reciter": "dussary",
-  "seconds": 12.12
- },
- {
-  "date": "2026-10-31",
-  "surah": 93,
-  "start": 1,
-  "end": 11,
-  "title": "سورة الضحى",
-  "reciter": "dussary",
-  "background": "lanterns",
-  "seconds": 51.85
- },
- {
-  "date": "2026-10-31",
-  "surah": 67,
-  "start": 1,
-  "end": 4,
-  "title": "مطلع سورة الملك",
-  "reciter": "shuraym",
-  "background": "gold_frame",
-  "seconds": 43.41
- },
- {
-  "date": "2026-10-31",
-  "surah": 59,
-  "start": 22,
-  "end": 24,
-  "title": "خواتيم سورة الحشر",
-  "reciter": "sudais",
-  "background": "photo: 07a8638517c4ca4d7d61babef36c5543.jpg",
-  "seconds": 50.08
- },
- {
-  "date": "2026-10-31",
-  "surah": 28,
-  "start": 24,
-  "end": 25,
-  "title": "دعاء الفقر إلى الله",
-  "reciter": "abdulbasit",
-  "background": "photo: 1454c43275d6f20079644949d1232fc3.jpg",
-  "seconds": 62.54
- },
- {
   "date": "2026-10-31",
   "surah": 96,
   "start": 1,
@@ -74,7 +7,10 @@
   "title": "سورة العلق",
   "reciter": "shuraym",
   "background": "photo: 20b8886bab47191cdd5bc62277dac216.jpg",
-  "seconds": 57.01
+  "seconds": 57.01,
+  "posted": {
+   "instagram": "https://www.instagram.com/reel/DfKNCHbimKT/"
+  }
  },
  {
   "date": "2026-10-31",
@@ -84,16 +20,9 @@
   "title": "العدل والإحسان للوالدين",
   "reciter": "sudais",
   "background": "photo: 308fd4a834618913f99ff8d4c3510f54.jpg",
-  "seconds": 40.7
- },
- {
-  "date": "2026-10-31",
-  "surah": 57,
-  "start": 7,
-  "end": 11,
-  "title": "الصدقة والإنفاق",
-  "reciter": "sudais",
-  "background": "photo: 38c1ed0c2e1dd9390750459ddf81e619.jpg",
-  "seconds": 81.5
+  "seconds": 40.7,
+  "posted": {
+   "facebook": "https://www.facebook.com/reel/968681036310053"
+  }
  }
 ]
