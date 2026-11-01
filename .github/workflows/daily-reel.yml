@@ -63,7 +63,7 @@ jobs:
           cat out/caption.txt
 
       - name: Save video as a downloadable artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: reel-${{ github.run_number }}
           path: out/
