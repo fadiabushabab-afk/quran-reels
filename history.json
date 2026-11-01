@@ -40,5 +40,23 @@
    "instagram": "https://www.instagram.com/reel/DfMo9zoDWxK/",
    "facebook": "https://www.facebook.com/reel/2166995847221019"
   }
+ },
+ {
+  "date": "2026-11-01",
+  "surah": 107,
+  "start": 1,
+  "end": 7,
+  "group": 2,
+  "friday": false,
+  "title": "سورة الماعون",
+  "reciter": "husary",
+  "background": "photo: 1454c43275d6f20079644949d1232fc3.jpg",
+  "seconds": 62.72,
+  "posted": {
+   "facebook": "https://www.facebook.com/reel/1787718985793178"
+  },
+  "failed": [
+   "instagram"
+  ]
  }
 ]
