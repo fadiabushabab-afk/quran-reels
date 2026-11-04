@@ -14,11 +14,10 @@ Environment (GitHub secrets / variables):
   FORCE             "true" to post even if today's reel is already out (normally one post per day);
                     manual runs can also add "force" to the platforms box, e.g. instagram,facebook,force
 
-Instagram: resumable upload first; if Instagram refuses it and MEDIA_REPO is set, host the
-SAME full-quality file briefly as a GitHub release asset and let Instagram fetch it (video_url).
-Only if that fails too is a lighter re-encode tried (resumable, then hosted).
-(Since 2 Nov the resumable upload has been refused every time while the hosted URL works, so
-the old order spent ~8 minutes and posted the lower-quality copy.)
+Instagram: when MEDIA_REPO is set, the full-quality file is hosted briefly as a GitHub release
+asset and Instagram fetches it (video_url); the direct (resumable) upload is the fallback.
+(Since 2 Nov the direct upload has been refused every time while the hosted URL works.)
+Only if both fail is a lighter re-encode tried.
 
 Writes out/published.json. When at least one platform posted, appends the passage
 to history.json, so a partly failed run never re-posts it to the platform that worked.
@@ -128,11 +127,11 @@ def instagram(token, ig_id, video, caption, cover_ms=2500):
 
     attempts = [("direct upload", lambda: post_instagram(token, ig_id, video, caption, cover_ms=cover_ms))]
     if repo and gh_token:
-        attempts.append(("hosted URL", lambda: hosted(video)))
-    attempts.append(("lighter encode", lambda: post_instagram(token, ig_id, safe_copy(video), caption,
-                                                              cover_ms=cover_ms)))
-    if repo and gh_token:
-        attempts.append(("lighter encode, hosted URL", lambda: hosted(os.path.join(OUT, "reel_ig.mp4"))))
+        attempts.insert(0, ("hosted URL", lambda: hosted(video)))
+        attempts.append(("lighter encode, hosted URL", lambda: hosted(safe_copy(video))))
+    else:
+        attempts.append(("lighter encode", lambda: post_instagram(token, ig_id, safe_copy(video), caption,
+                                                                  cover_ms=cover_ms)))
     for i, (name, attempt) in enumerate(attempts):
         try:
             return attempt()
@@ -169,10 +168,11 @@ def page_token_from(token, page_id):
 
 
 def record(meta, results, path):
-    """Append the passage to history once anything was posted (never for --surah test runs)."""
+    """Append the passage to history once anything was posted (never for --surah test runs).
+    Returns False only if it should have been saved and could not be."""
     posted = {k: v["permalink"] for k, v in results.items() if "permalink" in v}
     if not posted or meta.get("fixed"):
-        return
+        return True
     entry = {k: v for k, v in meta.items() if k != "fixed"}
     entry["posted"] = posted
     failed = [k for k, v in results.items() if "error" in v]
@@ -181,11 +181,11 @@ def record(meta, results, path):
     with open(os.path.join(OUT, "history_entry.json"), "w", encoding="utf-8") as f:
         json.dump(entry, f, ensure_ascii=False, indent=1)
     if os.environ.get("GITHUB_ACTIONS"):
-        save_history_to_github(entry, path)
-        return
+        return save_history_to_github(entry, path)
     history = load_history(path)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(history + [entry], f, ensure_ascii=False, indent=1)
+    return True
 
 
 def git(*args):
@@ -198,8 +198,7 @@ BRANCH = os.environ.get("GITHUB_REF_NAME") or "main"
 def save_history_to_github(entry, path):
     """Merge the entry into the LATEST history.json on GitHub and push, retrying if another run
     pushed in between. (The old commit-then-rebase step crashed on 2 Nov when two runs overlapped,
-    which is how Al-Fatiha went unrecorded.) Leaves the working tree clean, so the workflow's own
-    "Remember used passage" step finds nothing left to do."""
+    which is how Al-Fatiha went unrecorded.) Returns False if every attempt failed."""
     git("config", "user.name", "quran-reels-bot")
     git("config", "user.email", "actions@users.noreply.github.com")
     for i in range(5):
@@ -208,17 +207,19 @@ def save_history_to_github(entry, path):
             git("reset", "-q", "--hard", f"origin/{BRANCH}")
             history = load_history(path)
             if entry in history:
-                return
+                return True
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(history + [entry], f, ensure_ascii=False, indent=1)
             git("add", path)
             git("commit", "-q", "-m", "history: " + json.dumps(entry, ensure_ascii=False))
             git("push", "-q", "origin", f"HEAD:{BRANCH}")
-            return
+            return True
         except subprocess.CalledProcessError as e:
             print(f"history save attempt {i + 1} failed: {(e.stderr or '')[:300]}", file=sys.stderr)
             time.sleep(5 * (i + 1))
-    print("::error title=history.json not saved::the post went out but could not be recorded")
+    print("::error title=history.json not saved::the post went out but could not be recorded; add this "
+          "entry by hand: " + json.dumps(entry, ensure_ascii=False))
+    return False
 
 
 def load_history(path):
@@ -287,8 +288,9 @@ def main():
 
     with open(os.path.join(OUT, "published.json"), "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
-    record(meta, results, hist_path)
-    return 1 if any("error" in r for r in results.values()) else 0    # red run -> GitHub emails you
+    saved = record(meta, results, hist_path)
+    failed = any("error" in r for r in results.values()) or not saved
+    return 1 if failed else 0    # red run -> GitHub emails you
 
 
 if __name__ == "__main__":

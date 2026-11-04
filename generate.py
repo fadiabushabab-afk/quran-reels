@@ -569,6 +569,10 @@ def main():
         max_sec = args.friday_max_sec if friday else args.max_sec
         p, title, rk, verses, _, section = choose(rng, history, args.reciter, tmp, max_sec, fixed, today)
         reciter_ar = RECITERS[rk][1]
+        virtue = p[4] if len(p) > 4 else None
+        if section:
+            # only part of the passage: say so, and drop the virtue (it is cited for the whole passage)
+            title, virtue = (f"من {title}" if title else ""), None
 
         bg_dir = os.path.join(HERE, "backgrounds")
         photos = [os.path.join(bg_dir, f) for f in sorted(os.listdir(bg_dir))
@@ -591,7 +595,7 @@ def main():
         mp4 = os.path.join(args.out, "reel.mp4")
         total, cover = render(verses, title, bgfile, theme, reciter_ar, args.handle, mp4, tmp, animate, video)
         with open(os.path.join(args.out, "caption.txt"), "w", encoding="utf-8") as f:
-            f.write(caption(verses, title, reciter_ar, args.hashtags, p[4] if len(p) > 4 else None))
+            f.write(caption(verses, title, reciter_ar, args.hashtags, virtue))
         start, end = section or (p[1], p[2])
         meta = {"date": today.isoformat(), "surah": p[0], "start": start, "end": end,
                 "group": p[5] if len(p) > 5 else None, "friday": friday,
