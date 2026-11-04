@@ -1,0 +1,3 @@
+# Files in the source folder that sync_backgrounds.py must never copy (one name or stem per line).
+715666a5067962ac89c4673996d839d6   # too small (592 px wide)
+f26a41abb014fdbb7c8cfd6e41279e6b   # watermark in the corner

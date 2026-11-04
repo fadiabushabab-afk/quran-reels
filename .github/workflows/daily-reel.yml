@@ -19,6 +19,9 @@ on:
       date:
         description: "Test only: pretend today is YYYY-MM-DD (empty = real date)"
         default: ""
+      background:
+        description: "Test only: force one file from backgrounds/ (empty = normal rotation)"
+        default: ""
 
 permissions:
   contents: write             # to commit history.json
@@ -52,6 +55,7 @@ jobs:
           set +e
           python generate.py --reciter "${{ github.event.inputs.reciter || 'random' }}" \
                              ${{ github.event.inputs.date && format('--date {0}', github.event.inputs.date) || '' }} \
+                             ${{ github.event.inputs.background && format('--bg-file {0}', github.event.inputs.background) || '' }} \
                              --handle "${{ vars.HANDLE || '@quran_reflections_waqf' }}" 2> err.txt
           code=$?
           set -e

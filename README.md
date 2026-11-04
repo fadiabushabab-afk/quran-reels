@@ -37,5 +37,5 @@ Python 3.9+, ffmpeg on PATH, Pillow with libraqm (`pip install -r requirements.t
     python generate.py --verses 73:1-20                 # same, short form
 
 Output goes to `out/`: reel.mp4, caption.txt, meta.json.
-Put your own photos in `backgrounds/` (any jpg/png) to use them instead of the generated gradient.
+Put your own photos (jpg/png) or video clips (mp4, prepared by `sync_backgrounds.py` as 1080x1920 seamless loops) in `backgrounds/` to use them instead of the generated gradient. Names in `background_exclude.txt` are never synced.
 `history.json` remembers used passages.

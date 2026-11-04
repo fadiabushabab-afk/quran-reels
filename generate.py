@@ -280,17 +280,26 @@ def draw_centered(draw, y, s, f, fill, rtl=True, shadow=True):
 
 
 
+IMG_EXT = (".jpg", ".jpeg", ".png", ".webp")
+VID_EXT = (".mp4", ".mov", ".m4v", ".webm")
+
+
+def is_video(path):
+    return path.lower().endswith(VID_EXT)
+
+
 def pick_photo(photos, history, today=None, days=10):
-    """Least recently used image first, so every image gets a turn before any repeats;
-    an image used in the last `days` days is never picked while any other is available."""
+    """Least recently used background (image or video clip) first, so every one gets a turn
+    before any repeats; one used in the last `days` days is never picked while any other is available."""
     last, recent = {}, set()
     for i, h in enumerate(history):
         bg = h.get("background", "")
-        if bg.startswith("photo: "):
-            last[bg[7:]] = i
+        if bg.startswith(("photo: ", "video: ")):
+            name = bg[7:]
+            last[name] = i
             try:
                 if today and (today - datetime.date.fromisoformat(h["date"])).days < days:
-                    recent.add(bg[7:])
+                    recent.add(name)
             except (KeyError, ValueError):
                 pass
     pool = [p for p in photos if os.path.basename(p) not in recent] or photos
@@ -306,6 +315,22 @@ def theme_for(path):
     theme = dict(bgstyles.DARK_TEXT if mean > 165 else bgstyles.LIGHT_TEXT)
     theme["light_bg"] = mean > 165
     return theme
+
+def video_still(path, dest):
+    """Average of three frames of a clip (¼, ½, ¾ through), used to judge text colour."""
+    d = duration(path)
+    frames = []
+    for k, frac in enumerate((0.25, 0.5, 0.75)):
+        fp = f"{dest}.{k}.png"
+        subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", f"{d * frac:.2f}", "-i", path,
+                        "-frames:v", "1", fp], check=True)
+        frames.append(Image.open(fp).convert("RGB"))
+    im = frames[0]
+    for k, f in enumerate(frames[1:], start=2):
+        im = Image.blend(im, f.resize(im.size), 1 / k)
+    im.save(dest)
+    return dest
+
 
 def make_photo_background(path, dest):
     im = Image.open(path).convert("RGB")
@@ -397,7 +422,7 @@ def make_text_overlay(text, theme, dest):
 
 # ---------------------------------------------------------------- render
 
-def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=False):
+def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=False, video=False):
     real = [v for v in verses if v["marker"]]
     a1, a2 = real[0]["ayah"], real[-1]["ayah"]
     rng_txt = to_ar_digits(a1) if a1 == a2 else f"{to_ar_digits(a1)}–{to_ar_digits(a2)}"
@@ -414,10 +439,14 @@ def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=F
     total = duration(audio)
     segs = segments_from(verses)
 
-    if animate:
-        # photo/AI image -> gentle looping motion (dust in the light, breathing light, slow drift)
-        # render one seamless loop and repeat it (much faster than rendering every second)
-        bgvid = motion.make_motion_video(bg, motion.LOOP, os.path.join(tmp, "bg.mp4"))
+    if animate or video:
+        if video:
+            # real video clip (already a seamless vertical loop from sync_backgrounds.py), repeated
+            bgvid = bg
+        else:
+            # photo/AI image -> gentle looping motion (dust in the light, breathing light, slow drift)
+            # render one seamless loop and repeat it (much faster than rendering every second)
+            bgvid = motion.make_motion_video(bg, motion.LOOP, os.path.join(tmp, "bg.mp4"))
         # soft dark glow behind the verse area so text stays readable on busy images
         scrim = Image.new("L", (W, H), 0)
         ImageDraw.Draw(scrim).rounded_rectangle([40, 470, W - 40, 1660], radius=200, fill=150)
@@ -428,14 +457,16 @@ def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=F
         inputs = ["-stream_loop", "-1", "-i", bgvid, "-loop", "1", "-framerate", str(FPS), "-i", scrim_png]
         grade = ("eq=saturation=1.03" if theme.get("light_bg")
                  else "eq=brightness=-0.04:saturation=1.05,vignette=angle=PI/4.5")
-        filt = [f"[0:v]{grade},setsar=1[bg0]",
+        fit = (f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={FPS},"
+               if video else "")
+        filt = [f"[0:v]{fit}{grade},setsar=1[bg0]",
                 "[bg0][1:v]overlay=0:0[bg]"]
     else:
         inputs = ["-loop", "1", "-framerate", str(FPS), "-i", bg]
         filt = [f"[0:v]scale={int(W*1.08)}:-2,"
                 f"crop={W}:{H}:'(in_w-{W})/2+sin(t/10)*18':'(in_h-{H})/2+cos(t/12)*12',setsar=1[bg]"]
     last = "bg"
-    base = 2 if animate else 1          # index of the first verse overlay input
+    base = 2 if (animate or video) else 1          # index of the first verse overlay input
     for i, s in enumerate(segs):
         ov = make_text_overlay(s["text"], theme, os.path.join(tmp, f"ov{i}.png"))
         st = s["start"]
@@ -509,6 +540,7 @@ def main():
     ap.add_argument("--history", default=os.path.join(HERE, "history.json"))
     ap.add_argument("--seed", default=None)
     ap.add_argument("--bg-style", default="", help="force a drawn style instead of photos: " + ", ".join(bgstyles.ALL_STYLES))
+    ap.add_argument("--bg-file", default="", help="force one file from backgrounds/ (testing)")
     args = ap.parse_args()
 
     rng = random.Random(args.seed or time.time_ns())
@@ -540,18 +572,24 @@ def main():
 
         bg_dir = os.path.join(HERE, "backgrounds")
         photos = [os.path.join(bg_dir, f) for f in sorted(os.listdir(bg_dir))
-                  if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))] if os.path.isdir(bg_dir) else []
-        animate, bg_style = False, None
+                  if f.lower().endswith(IMG_EXT + VID_EXT)] if os.path.isdir(bg_dir) else []
+        if args.bg_file:
+            photos = [os.path.join(bg_dir, args.bg_file)]
+        animate, video, bg_style = False, False, None
         if photos and not args.bg_style:
             bgfile = pick_photo(photos, history, today)
-            theme = theme_for(bgfile)
-            bg_style, animate = "photo: " + os.path.basename(bgfile), True
+            if is_video(bgfile):
+                theme = theme_for(video_still(bgfile, os.path.join(tmp, "still.png")))
+                bg_style, video = "video: " + os.path.basename(bgfile), True
+            else:
+                theme = theme_for(bgfile)
+                bg_style, animate = "photo: " + os.path.basename(bgfile), True
         else:
             bgfile = os.path.join(tmp, "bg.jpg")
             bg_style, theme = bgstyles.make_themed(rng, bgfile, args.bg_style or None)
 
         mp4 = os.path.join(args.out, "reel.mp4")
-        total, cover = render(verses, title, bgfile, theme, reciter_ar, args.handle, mp4, tmp, animate)
+        total, cover = render(verses, title, bgfile, theme, reciter_ar, args.handle, mp4, tmp, animate, video)
         with open(os.path.join(args.out, "caption.txt"), "w", encoding="utf-8") as f:
             f.write(caption(verses, title, reciter_ar, args.hashtags, p[4] if len(p) > 4 else None))
         start, end = section or (p[1], p[2])
