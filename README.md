@@ -3,15 +3,21 @@
 Makes a daily 1080x1920 Quran video.
 
 - **Daily order:** groups rotate (virtue passage → short surah → thematic passage); Fridays use
-  the first or last ten verses of Al-Kahf, alternating. Videos may run up to 3 minutes on Instagram;
-  Facebook only receives videos of 90 seconds or less.
+  the first or last ten verses of Al-Kahf, alternating. One post per day: a second run on the same
+  day does not post (manual runs can tick "force" to override).
+- **Length:** reels are at most 60 s (Fridays up to ~3 min for Al-Kahf; Facebook only receives
+  videos of 90 s or less). A longer passage is posted one complete ruku' section at a time (the
+  traditional thematic divisions of the mushaf), continuing with the next section the next time
+  the passage comes round. A passage with no section short enough is skipped.
 - **Passages:** chosen from `passages.py`: short surahs in full (opened with the basmala) and
   well-known verses of great virtue, always complete in meaning. Every passage is used once
   before any repeats. Edit `passages.py` to add or remove passages.
-- **Reciter:** random each day from 8 reciters (if a passage is longer than 88 s with one
-  reciter, another is tried; Facebook Reels allow up to 90 s).
+- **Reciter:** random each day from 8 reciters (if a passage is too long with one reciter,
+  another is tried).
+- **Cover:** the Instagram cover is a frame from the first verse (not the basmala), so covers
+  differ from reel to reel.
 - **Background:** an image from `backgrounds/` (the user's library, synced from their
-  "Holy Quran" folder). The least recently used image is chosen, so all get a turn. Each image is
+  "Holy Quran" folder). The least recently used image is chosen, so all get a turn, and no image is reused within 10 days. Each image is
   animated by `motion.py`: soft warm light rays from above, dust floating almost still in the light,
   breathing light and a very slow camera drift, looping seamlessly every 30 s. Text is white on dark images and dark brown on light ones, with a soft glow
   behind the verses. If the folder is empty, a drawn Islamic style from `bgstyles.py` is used.
@@ -27,6 +33,7 @@ Python 3.9+, ffmpeg on PATH, Pillow with libraqm (`pip install -r requirements.t
     python generate.py                                  # random passage, random reciter
     python generate.py --reciter alafasy --handle @mypage
     python generate.py --surah 112 --start 1 --end 4    # a specific passage
+    python generate.py --verses 73:1-20                 # same, short form
 
 Output goes to `out/`: reel.mp4, caption.txt, meta.json.
 Put your own photos in `backgrounds/` (any jpg/png) to use them instead of the generated gradient.

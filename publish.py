@@ -11,6 +11,8 @@ Environment (GitHub secrets / variables):
   MEDIA_REPO        optional public repo "owner/name" used to host the video for Instagram
   MEDIA_TOKEN       token with Contents read/write on MEDIA_REPO
   HISTORY           history file to append to (default history.json)
+  FORCE             "true" to post even if today's reel is already out (normally one post per day);
+                    manual runs can also add "force" to the platforms box, e.g. instagram,facebook,force
 
 Instagram: resumable upload first; if Instagram refuses the file, retry with a
 lighter re-encode; if that also fails and MEDIA_REPO is set, host the video for
@@ -38,10 +40,10 @@ def call(method, url, params=None, data=None, headers=None, timeout=120):
         raise RuntimeError(f"{method} {url.split('?')[0]} -> {e.code}: {body[:600]}")
 
 
-def post_instagram(token, ig_id, video, caption, video_url=None):
+def post_instagram(token, ig_id, video, caption, video_url=None, cover_ms=2500):
     # 1. container: resumable (we upload the bytes) or video_url (Instagram fetches it)
     params = {"media_type": "REELS", "caption": caption, "share_to_feed": "true",
-              "thumb_offset": "2500", "access_token": token}       # cover = frame at 2.5 s (verse on screen)
+              "thumb_offset": str(int(cover_ms)), "access_token": token}   # cover = first verse on screen
     params.update({"video_url": video_url} if video_url else {"upload_type": "resumable"})
     cid = call("POST", f"{GRAPH}/{ig_id}/media", params)["id"]
     # 2. upload the bytes
@@ -112,14 +114,14 @@ def host_on_github(repo, token, video):
     return asset["browser_download_url"], cleanup
 
 
-def instagram(token, ig_id, video, caption):
+def instagram(token, ig_id, video, caption, cover_ms=2500):
     try:
-        return post_instagram(token, ig_id, video, caption)
+        return post_instagram(token, ig_id, video, caption, cover_ms=cover_ms)
     except Exception as first:
         print(f"::warning title=Instagram upload refused, retrying with a lighter encode::{str(first)[:200]}")
     light = safe_copy(video)
     try:
-        return post_instagram(token, ig_id, light, caption)
+        return post_instagram(token, ig_id, light, caption, cover_ms=cover_ms)
     except Exception as second:
         repo, gh_token = os.environ.get("MEDIA_REPO"), os.environ.get("MEDIA_TOKEN")
         if not (repo and gh_token):
@@ -127,7 +129,7 @@ def instagram(token, ig_id, video, caption):
         print(f"::warning title=Instagram retrying via hosted URL::{str(second)[:200]}")
     url, cleanup = host_on_github(repo, gh_token, light)
     try:
-        return post_instagram(token, ig_id, light, caption, video_url=url)
+        return post_instagram(token, ig_id, light, caption, video_url=url, cover_ms=cover_ms)
     finally:
         cleanup()
 
@@ -168,12 +170,67 @@ def record(meta, results, path):
     failed = [k for k, v in results.items() if "error" in v]
     if failed:
         entry["failed"] = failed
-    history = []
-    if os.path.exists(path):
-        with open(path, encoding="utf-8") as f:
-            history = json.load(f)
+    with open(os.path.join(OUT, "history_entry.json"), "w", encoding="utf-8") as f:
+        json.dump(entry, f, ensure_ascii=False, indent=1)
+    if os.environ.get("GITHUB_ACTIONS"):
+        save_history_to_github(entry, path)
+        return
+    history = load_history(path)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(history + [entry], f, ensure_ascii=False, indent=1)
+
+
+def git(*args):
+    return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout
+
+
+BRANCH = os.environ.get("GITHUB_REF_NAME") or "main"
+
+
+def save_history_to_github(entry, path):
+    """Merge the entry into the LATEST history.json on GitHub and push, retrying if another run
+    pushed in between. (The old commit-then-rebase step crashed on 2 Nov when two runs overlapped,
+    which is how Al-Fatiha went unrecorded.) Leaves the working tree clean, so the workflow's own
+    "Remember used passage" step finds nothing left to do."""
+    git("config", "user.name", "quran-reels-bot")
+    git("config", "user.email", "actions@users.noreply.github.com")
+    for i in range(5):
+        try:
+            git("fetch", "-q", "origin", BRANCH)
+            git("reset", "-q", "--hard", f"origin/{BRANCH}")
+            history = load_history(path)
+            if entry in history:
+                return
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(history + [entry], f, ensure_ascii=False, indent=1)
+            git("add", path)
+            git("commit", "-q", "-m", "history: " + json.dumps(entry, ensure_ascii=False))
+            git("push", "-q", "origin", f"HEAD:{BRANCH}")
+            return
+        except subprocess.CalledProcessError as e:
+            print(f"history save attempt {i + 1} failed: {(e.stderr or '')[:300]}", file=sys.stderr)
+            time.sleep(5 * (i + 1))
+    print("::error title=history.json not saved::the post went out but could not be recorded")
+
+
+def load_history(path):
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+
+def already_posted(meta, path):
+    """Today's reel is already out (any earlier run, scheduled or manual), judged on the
+    latest history.json on GitHub, not the copy this run started with."""
+    history = load_history(path)
+    if os.environ.get("GITHUB_ACTIONS"):
+        try:
+            git("fetch", "-q", "origin", BRANCH)
+            history = json.loads(git("show", f"origin/{BRANCH}:{path}"))
+        except Exception as e:
+            print(f"could not read the latest history: {e}", file=sys.stderr)
+    return [h for h in history if h.get("date") == meta.get("date") and h.get("posted")]
 
 
 def main():
@@ -190,12 +247,19 @@ def main():
     with open(os.path.join(OUT, "meta.json"), encoding="utf-8") as f:
         meta = json.load(f)
     seconds = float(meta.get("seconds", 0))
-
+    hist_path = os.environ.get("HISTORY", "history.json")
+    done = already_posted(meta, hist_path)
     platforms = {x.strip().lower() for x in os.environ.get("PLATFORMS", "instagram,facebook").split(",")}
+    force = os.environ.get("FORCE", "").lower() == "true" or "force" in platforms
+    if done and not force:
+        print(f"::notice title=Not posted::today's reel ({done[-1].get('title')}) is already out; "
+              "one post per day (add force to the platforms box to post anyway)")
+        return 0
+
     results = {}
     if "instagram" in platforms:
         try:
-            results["instagram"] = instagram(user_token, ig_id, video, caption)
+            results["instagram"] = instagram(user_token, ig_id, video, caption, meta.get("cover_ms", 2500))
             print("::notice title=Posted to Instagram::" + str(results["instagram"]["permalink"]))
         except Exception as e:
             results["instagram"] = {"error": str(e)}
@@ -215,7 +279,7 @@ def main():
 
     with open(os.path.join(OUT, "published.json"), "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
-    record(meta, results, os.environ.get("HISTORY", "history.json"))
+    record(meta, results, hist_path)
     return 1 if any("error" in r for r in results.values()) else 0    # red run -> GitHub emails you
 
 

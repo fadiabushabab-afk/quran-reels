@@ -104,12 +104,19 @@ def load_history(path):
     return []
 
 
+def passage_key(h):
+    """History entry -> the passage it came from (a section of a long surah counts as that surah)."""
+    if h.get("part_of"):
+        return tuple(h["part_of"])
+    return (h.get("surah"), h.get("start"), h.get("end"))
+
+
 def order_candidates(rng, history, pool=None):
     """Passages never used first (shuffled), then the least recently used."""
     pool = PASSAGES if pool is None else pool
     last_used = {}
     for i, h in enumerate(history):
-        last_used[(h["surah"], h["start"], h["end"])] = i
+        last_used[passage_key(h)] = i
     unused = [p for p in pool if (p[0], p[1], p[2]) not in last_used]
     used = [p for p in pool if (p[0], p[1], p[2]) in last_used]
     rng.shuffle(unused)
@@ -119,7 +126,7 @@ def order_candidates(rng, history, pool=None):
 
 def group_of(entry):
     for p in PASSAGES:
-        if p[:3] == (entry.get("surah"), entry.get("start"), entry.get("end")):
+        if p[:3] == passage_key(entry):
             return p[5]
     return None
 
@@ -163,9 +170,31 @@ def build_passage(surah, start, end, reciter_key, tmp, max_sec):
     return verses, total
 
 
+def sections_of(surah, start, end):
+    """Whole ruku' sections (the traditional thematic divisions of the mushaf) inside start..end.
+    Only sections that are complete ruku's are returned, so a section never stops mid-theme."""
+    try:
+        j = json.loads(http_get(f"https://api.alquran.cloud/v1/surah/{surah}"))
+        ruku = {a["numberInSurah"]: a.get("ruku") for a in j["data"]["ayahs"]}
+    except Exception as e:
+        print(f"  could not read sections of surah {surah}: {e}", file=sys.stderr)
+        return []
+    if any(ruku.get(a) is None for a in range(start, end + 1)):
+        return []
+    secs = []
+    for a in range(start, end + 1):
+        if secs and secs[-1][2] == ruku[a]:
+            secs[-1][1] = a
+        else:
+            secs.append([a, a, ruku[a]])
+    whole = [(a, b) for a, b, r in secs if ruku.get(a - 1) != r and ruku.get(b + 1) != r]
+    return whole if len(secs) > 1 else []
+
+
 def choose(rng, history, reciter_arg, tmp, max_sec, fixed=None, today=None):
-    """Pick passage + reciter. If the recitation is longer than max_sec,
-    try another reciter, then the next passage."""
+    """Pick passage + reciter. If the recitation is longer than max_sec, try another reciter;
+    then the passage's complete ruku' sections (next unused section first); then the next passage.
+    Returns (passage, title, reciter, verses, seconds, section or None)."""
     keys = list(RECITERS)
     candidates = [fixed] if fixed else daily_candidates(rng, history, today)[0]
     for p in candidates[:60]:
@@ -179,8 +208,20 @@ def choose(rng, history, reciter_arg, tmp, max_sec, fixed=None, today=None):
         for rk in order:
             res = build_passage(surah, start, end, rk, tmp, max_sec)
             if res:
-                return p, title, rk, res[0], res[1]
+                return p, title, rk, res[0], res[1], None
             print(f"  {surah}:{start}-{end} too long with {rk}, trying another", file=sys.stderr)
+        secs = sections_of(surah, start, end)
+        if not secs:
+            continue
+        prev = [(h["start"], h["end"]) for h in history
+                if h.get("part_of") and tuple(h["part_of"]) == tuple(p[:3])]
+        k = (secs.index(prev[-1]) + 1) % len(secs) if prev and prev[-1] in secs else 0
+        for a, b in secs[k:] + secs[:k]:               # continue where the last section left off
+            for rk in order:
+                res = build_passage(surah, a, b, rk, tmp, max_sec)
+                if res:
+                    return p, title, rk, res[0], res[1], (a, b)
+                print(f"  section {surah}:{a}-{b} too long with {rk}", file=sys.stderr)
     raise RuntimeError("no passage fits within the time limit")
 
 
@@ -231,14 +272,21 @@ def draw_centered(draw, y, s, f, fill, rtl=True, shadow=True):
 
 
 
-def pick_photo(photos, history):
-    """Least recently used image first, so every image gets a turn before any repeats."""
-    last = {}
+def pick_photo(photos, history, today=None, days=10):
+    """Least recently used image first, so every image gets a turn before any repeats;
+    an image used in the last `days` days is never picked while any other is available."""
+    last, recent = {}, set()
     for i, h in enumerate(history):
         bg = h.get("background", "")
         if bg.startswith("photo: "):
             last[bg[7:]] = i
-    return min(photos, key=lambda p: (last.get(os.path.basename(p), -1), os.path.basename(p)))
+            try:
+                if today and (today - datetime.date.fromisoformat(h["date"])).days < days:
+                    recent.add(bg[7:])
+            except (KeyError, ValueError):
+                pass
+    pool = [p for p in photos if os.path.basename(p) not in recent] or photos
+    return min(pool, key=lambda p: (last.get(os.path.basename(p), -1), os.path.basename(p)))
 
 
 def theme_for(path):
@@ -295,7 +343,7 @@ def segments_from(verses):
             label = p
             if v["marker"] and last:
                 label = f"{p} ﴿{to_ar_digits(v['ayah'])}﴾"
-            segs.append({"text": label, "start": t, "end": t + d})
+            segs.append({"text": label, "start": t, "end": t + d, "verse": v})
             t += d
     return segs
 
@@ -405,7 +453,17 @@ def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=F
            "-maxrate", "10M", "-bufsize", "20M", "-g", str(FPS * 2),      # Instagram: capped bitrate, keyframe every 2 s
            "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", out_mp4]
     subprocess.run(cmd, check=True)
-    return total
+    return total, cover_ms(segs)
+
+
+def cover_ms(segs):
+    """Cover frame (Instagram thumb_offset): the first real verse fully on screen, not the basmala."""
+    for s in segs:
+        v = s["verse"]
+        if not v["marker"] or (v["surah"] == 1 and v["ayah"] == 1 and len(segs) > 1):
+            continue
+        return int(1000 * (s["start"] + min(1.5, (s["end"] - s["start"]) / 2)))
+    return 2500
 
 
 def caption(verses, title, reciter_ar, hashtags, virtue=None):
@@ -431,8 +489,11 @@ def main():
     ap.add_argument("--out", default=os.path.join(HERE, "out"))
     ap.add_argument("--reciter", default="random", help="key from RECITERS, or 'random'")
     ap.add_argument("--surah", type=int); ap.add_argument("--start", type=int); ap.add_argument("--end", type=int)
-    ap.add_argument("--max-sec", type=float, default=175,
-                    help="longest video (Instagram); Facebook only gets videos of 90 s or less")
+    ap.add_argument("--max-sec", type=float, default=60,
+                    help="longest video; longer passages are posted one complete section at a time")
+    ap.add_argument("--friday-max-sec", type=float, default=175,
+                    help="Fridays: the ten verses of Al-Kahf are kept whole (Instagram only if > 90 s)")
+    ap.add_argument("--verses", default="", help="a specific passage as SURAH:START-END, e.g. 73:1-20")
     ap.add_argument("--date", default=None, help="pretend today is YYYY-MM-DD (testing)")
     ap.add_argument("--handle", default="", help="text shown at the bottom, e.g. @myaccount")
     ap.add_argument("--hashtags", default="#قرآن #القرآن_الكريم #تلاوة #آيات #quran #islam #reels")
@@ -450,6 +511,12 @@ def main():
     try:
         history = load_history(args.history)
         fixed = None
+        if args.verses:
+            sv, _, rg = args.verses.partition(":")
+            args.surah = int(sv)
+            if rg:
+                a, _, b = rg.partition("-")
+                args.start, args.end = int(a), int(b or a)
         if args.surah:
             st = args.start or 1
             en = args.end or (st if args.start else AYAH_COUNTS[args.surah - 1])
@@ -457,7 +524,9 @@ def main():
             fixed = match[0] if match else (args.surah, st, en, "", None, None)
         today = (datetime.date.fromisoformat(args.date) if args.date
                  else datetime.datetime.now(ZoneInfo("Asia/Baghdad")).date())
-        p, title, rk, verses, _ = choose(rng, history, args.reciter, tmp, args.max_sec, fixed, today)
+        friday = today.weekday() == 4 and not args.surah
+        max_sec = args.friday_max_sec if friday else args.max_sec
+        p, title, rk, verses, _, section = choose(rng, history, args.reciter, tmp, max_sec, fixed, today)
         reciter_ar = RECITERS[rk][1]
 
         bg_dir = os.path.join(HERE, "backgrounds")
@@ -465,7 +534,7 @@ def main():
                   if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))] if os.path.isdir(bg_dir) else []
         animate, bg_style = False, None
         if photos and not args.bg_style:
-            bgfile = pick_photo(photos, history)
+            bgfile = pick_photo(photos, history, today)
             theme = theme_for(bgfile)
             bg_style, animate = "photo: " + os.path.basename(bgfile), True
         else:
@@ -473,13 +542,16 @@ def main():
             bg_style, theme = bgstyles.make_themed(rng, bgfile, args.bg_style or None)
 
         mp4 = os.path.join(args.out, "reel.mp4")
-        total = render(verses, title, bgfile, theme, reciter_ar, args.handle, mp4, tmp, animate)
+        total, cover = render(verses, title, bgfile, theme, reciter_ar, args.handle, mp4, tmp, animate)
         with open(os.path.join(args.out, "caption.txt"), "w", encoding="utf-8") as f:
             f.write(caption(verses, title, reciter_ar, args.hashtags, p[4] if len(p) > 4 else None))
-        meta = {"date": today.isoformat(), "surah": p[0], "start": p[1], "end": p[2],
-                "group": p[5] if len(p) > 5 else None, "friday": today.weekday() == 4 and not args.surah,
+        start, end = section or (p[1], p[2])
+        meta = {"date": today.isoformat(), "surah": p[0], "start": start, "end": end,
+                "group": p[5] if len(p) > 5 else None, "friday": friday,
                 "title": title, "reciter": rk, "background": bg_style, "seconds": round(total, 2),
-                "fixed": bool(args.surah)}
+                "cover_ms": cover, "fixed": bool(args.surah)}
+        if section:
+            meta["part_of"] = list(p[:3])
         # history.json is written by publish.py, only after something was actually posted
         with open(os.path.join(args.out, "meta.json"), "w", encoding="utf-8") as f:
             json.dump(meta, f, ensure_ascii=False, indent=2)

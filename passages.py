@@ -6,7 +6,8 @@
 #   - always whole verses; passages are never cut mid-verse
 #   - `virtue` is filled ONLY for group 1 (passages with a cited hadith) and appears in
 #     the caption with its source, as the document recommends
-#   - videos may run up to 3 minutes (Instagram); Facebook only gets videos of 90 s or less
+#   - reels are at most 60 s; longer passages are posted one complete ruku' section at a time
+#     (Fridays' Al-Kahf ten verses stay whole, up to ~3 min); Facebook only gets videos of 90 s or less
 #   - daily order rotates the groups 1 -> 2 -> 3; Fridays use the first/last ten verses of Al-Kahf
 #
 # Editorial notes kept from the document:
