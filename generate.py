@@ -17,7 +17,7 @@ Usage:
   python generate.py                                   # next passage, random reciter
   python generate.py --surah 112 --start 1 --end 4 --reciter alafasy
 """
-import argparse, datetime, json, math, os, random, shutil, subprocess, sys, tempfile, time
+import argparse, datetime, json, math, os, random, re, shutil, subprocess, sys, tempfile, time
 import urllib.request
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -51,6 +51,7 @@ AYAH_COUNTS = [7,286,200,176,120,165,206,75,129,109,123,111,43,52,99,128,111,110
 assert len(AYAH_COUNTS) == 114
 
 UA = {"User-Agent": "quran-reels/1.0"}
+WAQF_SPACE = re.compile(r"\s+([ۖ-ۜ])")     # space(s) before a Quranic pause mark
 CHUNK_CHARS = 170      # long verses are shown in parts of about this many characters
 
 
@@ -77,6 +78,9 @@ def fetch_verse(surah, ayah):
     # alquran.cloud prefixes verse 1 of each surah (except 1 and 9) with the basmala
     if ayah == 1 and surah not in (1, 9) and text.startswith("بِسْمِ"):
         text = " ".join(text.split(" ")[4:]).strip()
+    # pause (waqf) marks come after a space; attach them to the word before, as in the mushaf,
+    # so they sit over its last letter and line wrapping never separates them
+    text = WAQF_SPACE.sub(r"\1", text)
     return {"surah": surah, "ayah": ayah, "text": text,
             "surah_name_ar": d["surah"]["name"], "surah_name_en": d["surah"]["englishName"]}
 

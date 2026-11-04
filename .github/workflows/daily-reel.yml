@@ -22,6 +22,9 @@ on:
       background:
         description: "Test only: force one file from backgrounds/ (empty = normal rotation)"
         default: ""
+      verses:
+        description: "Test only: a specific passage, e.g. 2:255 (empty = normal rotation; never recorded)"
+        default: ""
 
 permissions:
   contents: write             # to commit history.json
@@ -56,6 +59,7 @@ jobs:
           python generate.py --reciter "${{ github.event.inputs.reciter || 'random' }}" \
                              ${{ github.event.inputs.date && format('--date {0}', github.event.inputs.date) || '' }} \
                              ${{ github.event.inputs.background && format('--bg-file {0}', github.event.inputs.background) || '' }} \
+                             ${{ github.event.inputs.verses && format('--verses {0}', github.event.inputs.verses) || '' }} \
                              --handle "${{ vars.HANDLE || '@quran_reflections_waqf' }}" 2> err.txt
           code=$?
           set -e
