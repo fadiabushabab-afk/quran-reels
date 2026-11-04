@@ -415,9 +415,11 @@ def make_static_overlay(header, title, reciter_ar, handle, theme, dest):
 def make_text_overlay(text, theme, dest):
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    box_w, box_h = W - 260, 1000
-    f, lines, lh = fit_text(d, text, "AmiriQuran.ttf", box_w, box_h)
-    top = 560 + (box_h - len(lines) * lh) // 2
+    # Amiri Quran draws pause marks (ۖ ۗ ۚ ...) about one line-height above the word, so lines need
+    # extra spacing or each mark lands under the line above it
+    box_w, box_h = W - 260, 1120
+    f, lines, lh = fit_text(d, text, "AmiriQuran.ttf", box_w, box_h, spacing=2.3)
+    top = 520 + (box_h - len(lines) * lh) // 2
     for i, ln in enumerate(lines):
         draw_centered(d, top + i * lh, ln, f, theme["verse"] + (255,), shadow=False)
     _soft_shadow(img, theme["shadow"], 14, 230).save(dest)
