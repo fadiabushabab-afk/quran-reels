@@ -14,7 +14,8 @@ Makes a daily 1080x1920 Quran video.
   before any repeats. Edit `passages.py` to add or remove passages.
 - **Reciter:** random each day from 8 reciters (if a passage is too long with one reciter,
   another is tried).
-- **Cover:** the Instagram cover is a frame from the first verse (not the basmala), so covers
+- **Cover:** the Instagram cover is a frame from the first verse (not the basmala), and the very
+  first frame already shows the text (Facebook uses it as the cover), so covers
   differ from reel to reel.
 - **Background:** an image from `backgrounds/` (the user's library, synced from their
   "Holy Quran" folder). The least recently used image is chosen, so all get a turn, and no image is reused within 10 days. Each image is

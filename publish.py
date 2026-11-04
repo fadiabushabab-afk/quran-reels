@@ -14,9 +14,11 @@ Environment (GitHub secrets / variables):
   FORCE             "true" to post even if today's reel is already out (normally one post per day);
                     manual runs can also add "force" to the platforms box, e.g. instagram,facebook,force
 
-Instagram: resumable upload first; if Instagram refuses the file, retry with a
-lighter re-encode; if that also fails and MEDIA_REPO is set, host the video for
-an hour as a GitHub release asset and let Instagram fetch it (video_url).
+Instagram: resumable upload first; if Instagram refuses it and MEDIA_REPO is set, host the
+SAME full-quality file briefly as a GitHub release asset and let Instagram fetch it (video_url).
+Only if that fails too is a lighter re-encode tried (resumable, then hosted).
+(Since 2 Nov the resumable upload has been refused every time while the hosted URL works, so
+the old order spent ~8 minutes and posted the lower-quality copy.)
 
 Writes out/published.json. When at least one platform posted, appends the passage
 to history.json, so a partly failed run never re-posts it to the platform that worked.
@@ -115,23 +117,29 @@ def host_on_github(repo, token, video):
 
 
 def instagram(token, ig_id, video, caption, cover_ms=2500):
-    try:
-        return post_instagram(token, ig_id, video, caption, cover_ms=cover_ms)
-    except Exception as first:
-        print(f"::warning title=Instagram upload refused, retrying with a lighter encode::{str(first)[:200]}")
-    light = safe_copy(video)
-    try:
-        return post_instagram(token, ig_id, light, caption, cover_ms=cover_ms)
-    except Exception as second:
-        repo, gh_token = os.environ.get("MEDIA_REPO"), os.environ.get("MEDIA_TOKEN")
-        if not (repo and gh_token):
-            raise
-        print(f"::warning title=Instagram retrying via hosted URL::{str(second)[:200]}")
-    url, cleanup = host_on_github(repo, gh_token, light)
-    try:
-        return post_instagram(token, ig_id, light, caption, video_url=url, cover_ms=cover_ms)
-    finally:
-        cleanup()
+    repo, gh_token = os.environ.get("MEDIA_REPO"), os.environ.get("MEDIA_TOKEN")
+
+    def hosted(path):
+        url, cleanup = host_on_github(repo, gh_token, path)
+        try:
+            return post_instagram(token, ig_id, path, caption, video_url=url, cover_ms=cover_ms)
+        finally:
+            cleanup()
+
+    attempts = [("direct upload", lambda: post_instagram(token, ig_id, video, caption, cover_ms=cover_ms))]
+    if repo and gh_token:
+        attempts.append(("hosted URL", lambda: hosted(video)))
+    attempts.append(("lighter encode", lambda: post_instagram(token, ig_id, safe_copy(video), caption,
+                                                              cover_ms=cover_ms)))
+    if repo and gh_token:
+        attempts.append(("lighter encode, hosted URL", lambda: hosted(os.path.join(OUT, "reel_ig.mp4"))))
+    for i, (name, attempt) in enumerate(attempts):
+        try:
+            return attempt()
+        except Exception as e:
+            if i == len(attempts) - 1:
+                raise
+            print(f"::warning title=Instagram {name} refused, trying {attempts[i + 1][0]}::{str(e)[:200]}")
 
 
 def post_facebook(token, page_id, video, caption):

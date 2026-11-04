@@ -147,7 +147,10 @@ def daily_candidates(rng, history, today):
     weekday = [p for p in PASSAGES if p not in FRIDAY]      # Al-Kahf ten verses are kept for Fridays
     first = order_candidates(rng, history, [p for p in weekday if p[5] == nxt])
     rest = [p for p in order_candidates(rng, history, weekday) if p[5] != nxt]
-    return first + rest, nxt
+    # passages found too long on an earlier day go last (still tried, e.g. with a faster reciter)
+    too = {tuple(x) for h in history for x in h.get("too_long", [])}
+    fits = lambda lst: [p for p in lst if p[:3] not in too] + [p for p in lst if p[:3] in too]
+    return fits(first) + fits(rest), nxt
 
 
 def build_passage(surah, start, end, reciter_key, tmp, max_sec):
@@ -191,6 +194,9 @@ def sections_of(surah, start, end):
     return whole if len(secs) > 1 else []
 
 
+TOO_LONG = []          # passages tried in this run that did not fit (saved in history via meta.json)
+
+
 def choose(rng, history, reciter_arg, tmp, max_sec, fixed=None, today=None):
     """Pick passage + reciter. If the recitation is longer than max_sec, try another reciter;
     then the passage's complete ruku' sections (next unused section first); then the next passage.
@@ -212,6 +218,7 @@ def choose(rng, history, reciter_arg, tmp, max_sec, fixed=None, today=None):
             print(f"  {surah}:{start}-{end} too long with {rk}, trying another", file=sys.stderr)
         secs = sections_of(surah, start, end)
         if not secs:
+            TOO_LONG.append(list(p[:3]))
             continue
         prev = [(h["start"], h["end"]) for h in history
                 if h.get("part_of") and tuple(h["part_of"]) == tuple(p[:3])]
@@ -222,6 +229,7 @@ def choose(rng, history, reciter_arg, tmp, max_sec, fixed=None, today=None):
                 if res:
                     return p, title, rk, res[0], res[1], (a, b)
                 print(f"  section {surah}:{a}-{b} too long with {rk}", file=sys.stderr)
+        TOO_LONG.append(list(p[:3]))
     raise RuntimeError("no passage fits within the time limit")
 
 
@@ -436,7 +444,8 @@ def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=F
         fade = min(0.35, dur / 4)
         # each verse screen exists only for its own few seconds (fast even for long passages)
         inputs += ["-loop", "1", "-framerate", str(FPS), "-t", f"{dur:.3f}", "-i", ov]
-        filt.append(f"[{i+base}:v]format=rgba,fade=in:st=0:d={fade:.2f}:alpha=1,"
+        fade_in = "" if i == 0 else f"fade=in:st=0:d={fade:.2f}:alpha=1,"   # frame 1 already shows text
+        filt.append(f"[{i+base}:v]format=rgba,{fade_in}"
                     f"fade=out:st={dur-fade:.3f}:d={fade:.2f}:alpha=1,"
                     f"setpts=PTS-STARTPTS+{st:.3f}/TB[o{i}]")
         filt.append(f"[{last}][o{i}]overlay=0:0:eof_action=pass[v{i}]")
@@ -552,6 +561,8 @@ def main():
                 "cover_ms": cover, "fixed": bool(args.surah)}
         if section:
             meta["part_of"] = list(p[:3])
+        if TOO_LONG and not args.surah:
+            meta["too_long"] = TOO_LONG
         # history.json is written by publish.py, only after something was actually posted
         with open(os.path.join(args.out, "meta.json"), "w", encoding="utf-8") as f:
             json.dump(meta, f, ensure_ascii=False, indent=2)
