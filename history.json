@@ -121,5 +121,44 @@
   "posted": {
    "instagram": "https://www.instagram.com/reel/DfSRB4_k3oI/"
   }
+ },
+ {
+  "date": "2026-11-04",
+  "surah": 4,
+  "start": 110,
+  "end": 112,
+  "group": 3,
+  "friday": false,
+  "title": "التوبة والرجاء",
+  "reciter": "alafasy",
+  "background": "photo: 014374cb9109d3c79b5da9389dd2fdad.jpg",
+  "seconds": 50.3,
+  "cover_ms": 1500,
+  "too_long": [
+   [
+    2,
+    216,
+    217
+   ],
+   [
+    4,
+    135,
+    136
+   ],
+   [
+    56,
+    83,
+    96
+   ],
+   [
+    2,
+    284,
+    286
+   ]
+  ],
+  "posted": {
+   "instagram": "https://www.instagram.com/reel/DfU1EhhAQSU/",
+   "facebook": "https://www.facebook.com/reel/1171688155542454"
+  }
  }
 ]
