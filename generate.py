@@ -512,7 +512,10 @@ def cover_ms(segs):
     return 2500
 
 
-def caption(verses, title, reciter_ar, hashtags, virtue=None):
+GRADE_ICON = {"h": "📜", "a": "📜", "q": "🌿", "s": "🖋️"}   # see passages.py
+
+
+def caption(verses, title, reciter_ar, hashtags, virtue=None, grade=None):
     real = [v for v in verses if v["marker"]]
     v0, v1 = real[0], real[-1]
     rng_txt = f"{v0['ayah']}" if v0["ayah"] == v1["ayah"] else f"{v0['ayah']}-{v1['ayah']}"
@@ -521,7 +524,7 @@ def caption(verses, title, reciter_ar, hashtags, virtue=None):
         body = body[:1200].rsplit(" ", 1)[0] + " …"
     head = f"✨ {title}\n" if title else ""
     if virtue:
-        head += f"📜 {virtue}\n"
+        head += f"{GRADE_ICON.get(grade, '📜')} {virtue}\n"
     head += "\n" if head else ""
     return (f"{head}{body}\n\n"
             f"📖 {v0['surah_name_ar']} ({v0['surah_name_en']}) — الآيات {rng_txt}\n"
@@ -568,7 +571,7 @@ def main():
             st = args.start or 1
             en = args.end or (st if args.start else AYAH_COUNTS[args.surah - 1])
             match = [p for p in PASSAGES if p[:3] == (args.surah, st, en)]
-            fixed = match[0] if match else (args.surah, st, en, "", None, None)
+            fixed = match[0] if match else (args.surah, st, en, "", None, None, None)
         today = (datetime.date.fromisoformat(args.date) if args.date
                  else datetime.datetime.now(ZoneInfo("Asia/Baghdad")).date())
         friday = today.weekday() == 4 and not args.surah
@@ -576,6 +579,7 @@ def main():
         p, title, rk, verses, _, section = choose(rng, history, args.reciter, tmp, max_sec, fixed, today)
         reciter_ar = RECITERS[rk][1]
         virtue = p[4] if len(p) > 4 else None
+        grade = p[6] if len(p) > 6 else None
         if section:
             # only part of the passage: say so, and drop the virtue (it is cited for the whole passage)
             title, virtue = (f"من {title}" if title else ""), None
@@ -601,7 +605,7 @@ def main():
         mp4 = os.path.join(args.out, "reel.mp4")
         total, cover = render(verses, title, bgfile, theme, reciter_ar, args.handle, mp4, tmp, animate, video)
         with open(os.path.join(args.out, "caption.txt"), "w", encoding="utf-8") as f:
-            f.write(caption(verses, title, reciter_ar, args.hashtags, virtue))
+            f.write(caption(verses, title, reciter_ar, args.hashtags, virtue, grade))
         start, end = section or (p[1], p[2])
         meta = {"date": today.isoformat(), "surah": p[0], "start": start, "end": end,
                 "group": p[5] if len(p) > 5 else None, "friday": friday,
