@@ -5,13 +5,18 @@ Makes a daily 1080x1920 Quran video.
 - **Daily order:** groups rotate (virtue passage → short surah → thematic passage); Fridays use
   the first or last ten verses of Al-Kahf, alternating. One post per day: a second run on the same
   day does not post (manual runs can tick "force" to override).
-- **Length:** reels are at most 60 s (Fridays up to ~3 min for Al-Kahf; Facebook only receives
+- **Length:** weekday reels are at most 30 s (since 5 Nov 2026; was 60 s), comforting and short passages are tried first (`COMFORT` in `passages.py`) (Fridays up to ~3 min for Al-Kahf; Facebook only receives
   videos of 90 s or less). A longer passage is posted one complete ruku' section at a time (the
   traditional thematic divisions of the mushaf), continuing with the next section the next time
   the passage comes round. A passage with no section short enough is skipped.
 - **Passages:** chosen from `passages.py`: short surahs in full (opened with the basmala) and
   well-known verses of great virtue, always complete in meaning. Every passage is used once
   before any repeats. Edit `passages.py` to add or remove passages.
+- **Caption:** hook line (Arabic | English) → title → virtue with its source (if any) → reflection
+  quoted from التفسير الميسر with its source → verses in Arabic → Saheeh International English →
+  surah and reciter → «اكتب آمين» / share as sadaqah jariyah → "Follow @… for daily verses" →
+  5 hashtags (Instagram's limit): `#quran #القرآن_الكريم #surah<name> #<theme> #explore`.
+  Kept under 2,100 characters (the English is dropped first if a passage is long).
 - **Reciter:** random each day from 8 reciters (if a passage is too long with one reciter,
   another is tried).
 - **Cover:** the Instagram cover is a frame from the first verse (not the basmala), and the very
@@ -24,7 +29,7 @@ Makes a daily 1080x1920 Quran video.
   behind the verses. If the folder is empty, a drawn Islamic style from `bgstyles.py` is used.
 
 - Audio: everyayah.com (per-verse MP3, choice of reciters)
-- Text: api.alquran.cloud (Uthmani script)
+- Text: api.alquran.cloud — Uthmani script, Saheeh International English (`en.sahih`, shown under each verse and in the caption) and التفسير الميسر (`ar.muyassar`, the caption's reflection line)
 - Font: Amiri Quran (SIL Open Font License, see fonts/OFL.txt)
 
 ## Requirements

@@ -10,7 +10,7 @@
 #     "q" promise stated in the Quran      -> 🌿   (never written as "قال رسول الله ﷺ")
 #     "s" companion / scholar statement    -> 🖋️  (attributed to the person by name)
 #   - always whole verses; passages are never cut mid-verse
-#   - reels are at most 60 s; longer passages are posted one complete ruku' section at a time,
+#   - reels are at most 30 s (5 Nov 2026; was 60 s); longer passages are posted one complete ruku' section at a time,
 #     and the virtue line is then dropped (it is cited for the whole passage)
 #   - daily order rotates the groups 1 -> 2 -> 3; Fridays use the first/last ten verses of Al-Kahf
 #
@@ -315,6 +315,11 @@ PASSAGES = [
     (82, 10, 19, "كتابة الأعمال والجزاء", None, 3, None),
     (76, 5, 12, "صفات أهل البر", None, 3, None),
     (23, 118, 118, "دعاء المغفرة والرحمة", None, 3, None),
+    # short comforting verses (added 5 Nov 2026 for the 30-second format; whole verses)
+    (20, 46, 46, "«لا تخافا إنني معكما أسمع وأرى»", None, 3, None),
+    (94, 5, 6, "«فإن مع العسر يسرًا»", None, 3, None),
+    (93, 3, 5, "«ولسوف يعطيك ربك فترضى»", None, 3, None),
+    (2, 214, 214, "«ألا إن نصر الله قريب»", None, 3, None),
     # removed as duplicates of a wider entry above: 17:23-24, 39:53, 31:13-19, 18:110, 25:74
 ]
 
@@ -329,6 +334,18 @@ def _dedupe(items):
 
 
 PASSAGES = _dedupe(PASSAGES)
+
+
+# Comforting passages (hope, relief, Allah's nearness, forgiveness): tried first within the day's
+# group. On Instagram, short comforting verses are what reach people beyond the followers.
+COMFORT = {
+    (20, 46, 46), (94, 5, 6), (93, 3, 5), (2, 214, 214), (2, 186, 186), (2, 155, 157),
+    (2, 152, 153), (21, 87, 88), (65, 2, 3), (13, 28, 29), (39, 53, 55), (27, 62, 62),
+    (21, 83, 84), (40, 44, 45), (12, 86, 87), (12, 90, 90), (3, 139, 142), (2, 216, 217),
+    (94, 1, 8), (93, 1, 11), (93, 6, 11), (9, 40, 40), (3, 173, 174), (2, 285, 286),
+    (40, 60, 60), (11, 114, 114), (25, 68, 70), (3, 8, 9), (9, 128, 129), (12, 64, 64),
+    (28, 24, 25), (2, 255, 255), (112, 1, 4), (103, 1, 3), (108, 1, 3), (110, 1, 3),
+}
 
 
 # Friday passages (alternate between them). The Friday-Kahf hadith is disputed, so the caption

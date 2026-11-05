@@ -22,7 +22,7 @@ import urllib.request
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-from passages import PASSAGES, FRIDAY
+from passages import PASSAGES, FRIDAY, COMFORT
 from zoneinfo import ZoneInfo
 import bgstyles, motion
 
@@ -71,9 +71,17 @@ def http_get(url, binary=False, tries=4):
     raise RuntimeError(f"GET failed: {url}: {last}")
 
 
+EN_EDITION = "en.sahih"          # Saheeh International
+TAFSIR_EDITION = "ar.muyassar"   # التفسير الميسر (King Fahd Complex) - the sourced reflection line
+
+
 def fetch_verse(surah, ayah):
-    j = json.loads(http_get(f"https://api.alquran.cloud/v1/ayah/{surah}:{ayah}/quran-uthmani"))
-    d = j["data"]
+    j = json.loads(http_get(f"https://api.alquran.cloud/v1/ayah/{surah}:{ayah}/editions/"
+                            f"quran-uthmani,{EN_EDITION},{TAFSIR_EDITION}"))
+    eds = {e["edition"]["identifier"]: e for e in j["data"]}
+    d = eds["quran-uthmani"]
+    en = eds.get(EN_EDITION, {}).get("text", "").strip()
+    tafsir = eds.get(TAFSIR_EDITION, {}).get("text", "").strip()
     text = d["text"].strip()
     # alquran.cloud prefixes verse 1 of each surah (except 1 and 9) with the basmala
     if ayah == 1 and surah not in (1, 9) and text.startswith("بِسْمِ"):
@@ -81,7 +89,7 @@ def fetch_verse(surah, ayah):
     # pause (waqf) marks come after a space; attach them to the word before, as in the mushaf,
     # so they sit over its last letter and line wrapping never separates them
     text = WAQF_SPACE.sub(r"\1", text)
-    return {"surah": surah, "ayah": ayah, "text": text,
+    return {"surah": surah, "ayah": ayah, "text": text, "en": en, "tafsir": tafsir,
             "surah_name_ar": d["surah"]["name"], "surah_name_en": d["surah"]["englishName"]}
 
 
@@ -153,8 +161,18 @@ def daily_candidates(rng, history, today):
     rest = [p for p in order_candidates(rng, history, weekday) if p[5] != nxt]
     # passages found too long on an earlier day go last (still tried, e.g. with a faster reciter)
     too = {tuple(x) for h in history for x in h.get("too_long", [])}
-    fits = lambda lst: [p for p in lst if p[:3] not in too] + [p for p in lst if p[:3] in too]
-    return fits(first) + fits(rest), nxt
+    return prefer_short(first, history, too) + prefer_short(rest, history, too), nxt
+
+
+def prefer_short(lst, history, too=()):
+    """Passages found too long on an earlier day last; within the same freshness (never used before / already used), comforting passages first,
+    then short ones (6 verses or fewer, likely to fit the 30-second format), then the rest.
+    Python's sort is stable, so the random / least-recently-used order is kept inside each band."""
+    used = {passage_key(h) for h in history}
+    return sorted(lst, key=lambda p: (p[:3] in too,
+                                      p[:3] in used,
+                                      p[:3] not in COMFORT,
+                                      p[2] - p[1] + 1 > 6))
 
 
 def build_passage(surah, start, end, reciter_key, tmp, max_sec):
@@ -368,11 +386,33 @@ def split_long(text, limit=CHUNK_CHARS):
     return parts
 
 
+def split_words(text, n):
+    """Split text into n parts of about equal length at word breaks (English shown under a long
+    verse that is displayed in n parts); prefers to break after punctuation."""
+    if n <= 1 or not text:
+        return [text] + [""] * (n - 1) if n > 1 else [text]
+    words = text.split()
+    target = len(text) / n
+    parts, cur = [], ""
+    for i, w in enumerate(words):
+        cur = (cur + " " + w).strip()
+        left = len(words) - i - 1
+        if len(parts) < n - 1 and left >= (n - 1 - len(parts)):
+            if len(cur) >= target or (len(cur) >= target * 0.7 and cur[-1] in ",;:.!?"):
+                parts.append(cur); cur = ""
+    parts.append(cur)
+    while len(parts) < n:
+        parts.append("")
+    return parts
+
+
 def segments_from(verses):
-    """One screen per verse; long verses split into parts timed by length."""
+    """One screen per verse; long verses split into parts timed by length.
+    Each screen carries its share of the English translation."""
     segs, t = [], 0.0
     for v in verses:
         parts = split_long(v["text"])
+        en_parts = split_words(v.get("en", ""), len(parts))
         total_chars = sum(len(p) for p in parts)
         for i, p in enumerate(parts):
             d = v["dur"] * len(p) / total_chars
@@ -380,7 +420,10 @@ def segments_from(verses):
             label = p
             if v["marker"] and last:
                 label = f"{p} ﴿{to_ar_digits(v['ayah'])}﴾"
-            segs.append({"text": label, "start": t, "end": t + d, "verse": v})
+            en = en_parts[i]
+            if en and v["marker"] and last:
+                en = f"{en} ({v['ayah']})"
+            segs.append({"text": label, "en": en, "start": t, "end": t + d, "verse": v})
             t += d
     return segs
 
@@ -412,16 +455,56 @@ def make_static_overlay(header, title, reciter_ar, handle, theme, dest):
     return dest
 
 
-def make_text_overlay(text, theme, dest):
+def wrap_ltr(draw, text, f, max_w):
+    words, lines, cur = text.split(), [], ""
+    for w in words:
+        t = (cur + " " + w).strip()
+        b = draw.textbbox((0, 0), t, font=f)
+        if b[2] - b[0] <= max_w or not cur:
+            cur = t
+        else:
+            lines.append(cur); cur = w
+    if cur:
+        lines.append(cur)
+    return lines
+
+
+def fit_english(draw, text, box_w, box_h, start=42, minimum=28, spacing=1.32):
+    size = start
+    while True:
+        f = font("Amiri-Regular.ttf", size)
+        lines = wrap_ltr(draw, text, f, box_w)
+        lh = int(size * spacing)
+        if len(lines) * lh <= box_h or size <= minimum:
+            return f, lines, lh
+        size -= 2
+
+
+VERSE_TOP, VERSE_BOTTOM = 480, 1650     # the verse area (inside the soft glow behind the text)
+EN_GAP = 46                             # space between the Arabic and the English
+
+
+def make_text_overlay(text, theme, dest, en=""):
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
+    area = VERSE_BOTTOM - VERSE_TOP
+    en_lines, en_lh, ef = [], 0, None
+    if en:
+        # English: at most ~30% of the area, smaller and softer than the verse
+        ef, en_lines, en_lh = fit_english(d, en, W - 220, int(area * 0.30))
+    en_h = len(en_lines) * en_lh
+    ar_box = area - (en_h + EN_GAP if en_lines else 0)
     # Amiri Quran draws pause marks (ۖ ۗ ۚ ...) about one line-height above the word, so lines need
     # extra spacing or each mark lands under the line above it
-    box_w, box_h = W - 260, 1120
-    f, lines, lh = fit_text(d, text, "AmiriQuran.ttf", box_w, box_h, spacing=2.3)
-    top = 520 + (box_h - len(lines) * lh) // 2
+    f, lines, lh = fit_text(d, text, "AmiriQuran.ttf", W - 260, ar_box, spacing=2.3)
+    ar_h = len(lines) * lh
+    block = ar_h + (EN_GAP + en_h if en_lines else 0)
+    top = VERSE_TOP + (area - block) // 2
     for i, ln in enumerate(lines):
         draw_centered(d, top + i * lh, ln, f, theme["verse"] + (255,), shadow=False)
+    y = top + ar_h + EN_GAP
+    for i, ln in enumerate(en_lines):
+        draw_centered(d, y + i * en_lh, ln, ef, theme["sub"] + (240,), rtl=False, shadow=False)
     _soft_shadow(img, theme["shadow"], 14, 230).save(dest)
     return dest
 
@@ -474,7 +557,7 @@ def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=F
     last = "bg"
     base = 2 if (animate or video) else 1          # index of the first verse overlay input
     for i, s in enumerate(segs):
-        ov = make_text_overlay(s["text"], theme, os.path.join(tmp, f"ov{i}.png"))
+        ov = make_text_overlay(s["text"], theme, os.path.join(tmp, f"ov{i}.png"), s.get("en", ""))
         st = s["start"]
         en = total if i == len(segs) - 1 else s["end"]
         dur = max(en - st, 0.1)
@@ -515,20 +598,102 @@ def cover_ms(segs):
 GRADE_ICON = {"h": "📜", "a": "📜", "q": "🌿", "s": "🖋️"}   # see passages.py
 
 
-def caption(verses, title, reciter_ar, hashtags, virtue=None, grade=None):
+CAPTION_MAX = 2100     # Instagram allows 2,200 characters; keep a margin
+HANDLE = "@quran_reflections_waqf"
+
+# opening line (the first line is all most people read before "more")
+HOOKS = {
+    "comfort": ["🤍 رسالة من الله لقلبك اليوم | A message for your heart today",
+                "🤍 إن ضاق صدرك… فاسمع هذه الآيات | If your heart feels heavy, listen to this",
+                "🤍 توقّف لحظة… واستمع بقلبك | Pause for a moment and listen with your heart",
+                "🤍 آياتٌ تطمئن بها القلوب | Verses that bring peace to the heart",
+                "🤍 لا تمرّ عليها سريعًا | Don't scroll past this one"],
+    "dua": ["🤲 دعاءٌ من القرآن… ردّده معنا | A du'a from the Quran, say it with us",
+            "🤲 أجمل الدعاء ما علّمنا الله إياه | The best du'a is the one Allah taught us"],
+    "friday": ["🕌 جمعة مباركة | Jumu'ah Mubarak"],
+}
+
+THEME_TAG = {1: "#islamicreminders", 2: "#quranrecitation", 3: "#تدبر"}
+
+
+def surah_tag(surah, name_en, start, end):
+    """English surah hashtag, e.g. #surahmulk, #ayatulkursi."""
+    if (surah, start, end) == (2, 255, 255):
+        return "#ayatulkursi"
+    n = name_en.lower()
+    n = re.sub(r"^(aal-i-|al-|an-|ar-|as-|ash-|at-|az-|ad-|adh-)", "", n)
+    n = re.sub(r"[^a-z]", "", n)
+    n = re.sub(r"aa+", "a", n).replace("ee", "i").replace("oo", "u")
+    return f"#surah{n}"
+
+
+def hashtags_for(verses, group, friday, is_dua):
+    """Instagram allows 5 hashtags: broad, Arabic broad, surah, theme, #explore."""
+    real = [v for v in verses if v["marker"]]
+    v0 = real[0]
+    theme = ("#jumuah" if friday else "#dua" if is_dua else THEME_TAG.get(group, "#islamicreminders"))
+    return " ".join(["#quran", "#القرآن_الكريم",
+                     surah_tag(v0["surah"], v0["surah_name_en"], v0["ayah"], real[-1]["ayah"]),
+                     theme, "#explore"])
+
+
+def tafsir_excerpt(verses, limit=280):
+    """First sentence(s) of التفسير الميسر for the passage, never cut mid-word."""
+    for v in verses:
+        t = (v.get("tafsir") or "").strip() if v["marker"] else ""
+        if not t:
+            continue
+        sents = re.split(r"(?<=[.!؟])\s+", t)
+        out = ""
+        for s in sents:
+            if out and len(out) + 1 + len(s) > limit:
+                break
+            out = (out + " " + s).strip()
+        if len(out) > limit + 60:                    # one very long sentence
+            cut = out[:limit]
+            k = max(cut.rfind("،"), cut.rfind(" "))
+            out = cut[:k].rstrip("،, ") + " …"
+        return out
+    return ""
+
+
+def caption(verses, title, reciter_ar, hashtags, virtue=None, grade=None,
+            hook="", handle=HANDLE):
     real = [v for v in verses if v["marker"]]
     v0, v1 = real[0], real[-1]
     rng_txt = f"{v0['ayah']}" if v0["ayah"] == v1["ayah"] else f"{v0['ayah']}-{v1['ayah']}"
-    body = " ".join(f"{v['text']} ﴿{to_ar_digits(v['ayah'])}﴾" for v in real)
-    if len(body) > 1200:
-        body = body[:1200].rsplit(" ", 1)[0] + " …"
-    head = f"✨ {title}\n" if title else ""
-    if virtue:
-        head += f"{GRADE_ICON.get(grade, '📜')} {virtue}\n"
-    head += "\n" if head else ""
-    return (f"{head}{body}\n\n"
-            f"📖 {v0['surah_name_ar']} ({v0['surah_name_en']}) — الآيات {rng_txt}\n"
-            f"🎙️ بصوت القارئ {reciter_ar}\n\n{hashtags}\n")
+    ar = " ".join(f"{v['text']} ﴿{to_ar_digits(v['ayah'])}﴾" for v in real)
+    en = " ".join(f"{v['en']} ({v['ayah']})" for v in real if v.get("en"))
+    reflection = tafsir_excerpt(verses)
+
+    def build(ar, en, reflection):
+        top = f"{hook}\n\n" if hook else ""
+        if title:
+            top += f"✨ {title}\n"
+        if virtue:
+            top += f"{GRADE_ICON.get(grade, '📜')} {virtue}\n"
+        if reflection:
+            top += f"💭 {reflection}\n— التفسير الميسر (مجمع الملك فهد)\n"
+        text = f"{top}\n{ar}\n"
+        if en:
+            text += f"\n🌍 {en}\n— Saheeh International\n"
+        text += (f"\n📖 {v0['surah_name_ar']} ({v0['surah_name_en']}) — الآيات {rng_txt}\n"
+                 f"🎙️ بصوت القارئ {reciter_ar}\n\n"
+                 f"🤲 اكتب «آمين» في التعليقات، وشاركها لتكون صدقة جارية لك\n"
+                 f"Comment \"Ameen\" and share it as sadaqah jariyah 🤍\n"
+                 f"➕ Follow {handle} for daily verses\n\n{hashtags}\n")
+        return text
+
+    # keep within Instagram's limit: drop the English first, then shorten the Arabic, then the reflection
+    text = build(ar, en, reflection)
+    if len(text) > CAPTION_MAX:
+        text = build(ar, "", reflection)
+    while len(text) > CAPTION_MAX and len(ar) > 200:
+        ar = ar[:int(len(ar) * 0.8)].rsplit(" ", 1)[0] + " …"
+        text = build(ar, "", reflection)
+    if len(text) > CAPTION_MAX:
+        text = build(ar, "", "")
+    return text
 
 
 # ---------------------------------------------------------------- main
@@ -538,14 +703,15 @@ def main():
     ap.add_argument("--out", default=os.path.join(HERE, "out"))
     ap.add_argument("--reciter", default="random", help="key from RECITERS, or 'random'")
     ap.add_argument("--surah", type=int); ap.add_argument("--start", type=int); ap.add_argument("--end", type=int)
-    ap.add_argument("--max-sec", type=float, default=60,
+    ap.add_argument("--max-sec", type=float, default=30,
                     help="longest video; longer passages are posted one complete section at a time")
     ap.add_argument("--friday-max-sec", type=float, default=175,
                     help="Fridays: the ten verses of Al-Kahf are kept whole (Instagram only if > 90 s)")
     ap.add_argument("--verses", default="", help="a specific passage as SURAH:START-END, e.g. 73:1-20")
     ap.add_argument("--date", default=None, help="pretend today is YYYY-MM-DD (testing)")
     ap.add_argument("--handle", default="", help="text shown at the bottom, e.g. @myaccount")
-    ap.add_argument("--hashtags", default="#قرآن #القرآن_الكريم #تلاوة #آيات #quran #islam #reels")
+    ap.add_argument("--hashtags", default="",
+                    help="override the 5 automatic hashtags (Instagram allows at most 5)")
     ap.add_argument("--history", default=os.path.join(HERE, "history.json"))
     ap.add_argument("--seed", default=None)
     ap.add_argument("--bg-style", default="", help="force a drawn style instead of photos: " + ", ".join(bgstyles.ALL_STYLES))
@@ -604,8 +770,14 @@ def main():
 
         mp4 = os.path.join(args.out, "reel.mp4")
         total, cover = render(verses, title, bgfile, theme, reciter_ar, args.handle, mp4, tmp, animate, video)
+        group = p[5] if len(p) > 5 else None
+        is_dua = "دعاء" in (p[3] if len(p) > 3 else "")
+        kind = "friday" if friday else "dua" if is_dua else "comfort"
+        hook = rng.choice(HOOKS[kind])
+        tags = args.hashtags or hashtags_for(verses, group, friday, is_dua)
         with open(os.path.join(args.out, "caption.txt"), "w", encoding="utf-8") as f:
-            f.write(caption(verses, title, reciter_ar, args.hashtags, virtue, grade))
+            f.write(caption(verses, title, reciter_ar, tags, virtue, grade, hook=hook,
+                            handle=args.handle or HANDLE))
         start, end = section or (p[1], p[2])
         meta = {"date": today.isoformat(), "surah": p[0], "start": start, "end": end,
                 "group": p[5] if len(p) > 5 else None, "friday": friday,
