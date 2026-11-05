@@ -160,5 +160,29 @@
    "instagram": "https://www.instagram.com/reel/DfU1EhhAQSU/",
    "facebook": "https://www.facebook.com/reel/1171688155542454"
   }
+ },
+ {
+  "date": "2026-11-05",
+  "surah": 12,
+  "start": 64,
+  "end": 64,
+  "group": 1,
+  "friday": false,
+  "title": "«فالله خير حافظًا»",
+  "reciter": "alafasy",
+  "background": "video: 127256-738105411_medium.mp4",
+  "seconds": 22.44,
+  "cover_ms": 1500,
+  "too_long": [
+   [
+    2,
+    155,
+    157
+   ]
+  ],
+  "posted": {
+   "instagram": "https://www.instagram.com/reel/DfXZ4hljiab/",
+   "facebook": "https://www.facebook.com/reel/1124028316704471"
+  }
  }
 ]
