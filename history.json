@@ -200,5 +200,22 @@
   "posted": {
    "instagram": "https://www.instagram.com/reel/DfZD3qLjN35/"
   }
+ },
+ {
+  "date": "2026-11-07",
+  "surah": 103,
+  "start": 1,
+  "end": 3,
+  "group": 2,
+  "friday": false,
+  "title": "سورة العصر",
+  "reciter": "maher",
+  "background": "video: 200850-914033010_medium.mp4",
+  "seconds": 22.22,
+  "cover_ms": 3905,
+  "posted": {
+   "instagram": "https://www.instagram.com/reel/Dfcg5FPE-jr/",
+   "facebook": "https://www.facebook.com/reel/1123575377240840"
+  }
  }
 ]
