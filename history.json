@@ -234,5 +234,39 @@
    "instagram": "https://www.instagram.com/reel/DffFfN6Dick/",
    "facebook": "https://www.facebook.com/reel/1177859351451316"
   }
+ },
+ {
+  "date": "2026-11-09",
+  "surah": 11,
+  "start": 114,
+  "end": 114,
+  "group": 1,
+  "friday": false,
+  "title": "«إن الحسنات يذهبن السيئات»",
+  "reciter": "minshawy",
+  "background": "photo: 3403642dcc9763ccdef2c37ec38ac967.jpg",
+  "seconds": 22.65,
+  "cover_ms": 1500,
+  "too_long": [
+   [
+    65,
+    2,
+    3
+   ],
+   [
+    25,
+    68,
+    70
+   ],
+   [
+    40,
+    44,
+    45
+   ]
+  ],
+  "posted": {
+   "instagram": "https://www.instagram.com/reel/DfhtSikHDTd/",
+   "facebook": "https://www.facebook.com/reel/2378059656273739"
+  }
  }
 ]
