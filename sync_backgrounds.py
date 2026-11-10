@@ -7,7 +7,7 @@ Videos  -> backgrounds/<name>.mp4   (1080x1920 vertical, 30 fps, no audio, at mo
 Names listed in background_exclude.txt are never copied.
 
 Usage: python sync_backgrounds.py "<folder>"   """
-import os, subprocess, sys
+import hashlib, os, re, subprocess, sys
 from PIL import Image
 
 MIN_W = 600
@@ -17,6 +17,19 @@ W, H, FPS = 1080, 1920, 30
 MAX_SEC = 30.0          # longest clip kept (it is looped for longer recitations)
 XFADE = 1.0             # seconds of cross-fade that hides the loop point
 MIN_SEC = 4.0
+
+
+def safe_stem(stem):
+    """File names without spaces or brackets, e.g. 'WhatsApp Video 2026-11-10 at 9.02.43 AM' -> 'WhatsApp_Video_2026-11-10_at_9.02.43_AM'."""
+    return re.sub(r"[^\w.-]+", "_", stem).strip("_")
+
+
+def file_hash(path):
+    h = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def duration(path):
@@ -54,12 +67,21 @@ def main():
             ln = ln.split("#")[0].strip()
             if ln:
                 excl.add(os.path.splitext(ln)[0])
-    for f in sorted(os.listdir(src)):
+    seen = {}
+    # shorter names first, so "x.jpg" is kept and its copy "x (1).jpg" is recognised as a duplicate
+    for f in sorted(os.listdir(src), key=lambda n: (len(n), n)):
         low = f.lower()
         stem = os.path.splitext(f)[0]
-        if stem in excl:
+        if stem in excl or safe_stem(stem) in excl:
             continue
         path = os.path.join(src, f)
+        if not low.endswith(IMG_EXT + VID_EXT) or not os.path.isfile(path):
+            continue
+        hsh = file_hash(path)
+        if hsh in seen:
+            skipped.append(f"{f} (duplicate of {seen[hsh]})"); continue
+        seen[hsh] = f
+        stem = safe_stem(stem)
         if low.endswith(IMG_EXT):
             name = stem + ".jpg"
             if os.path.exists(os.path.join(dst, name)):
