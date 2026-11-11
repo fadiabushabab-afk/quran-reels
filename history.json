@@ -285,5 +285,29 @@
    "instagram": "https://www.instagram.com/reel/DfkQ9UAEtCT/",
    "facebook": "https://www.facebook.com/reel/1433417401797608"
   }
+ },
+ {
+  "date": "2026-11-11",
+  "surah": 20,
+  "start": 46,
+  "end": 46,
+  "group": 3,
+  "friday": false,
+  "title": "«لا تخافا إنني معكما أسمع وأرى»",
+  "reciter": "dussary",
+  "background": "photo: 15d268727ff9f80edb44cd0fb7ebc48f.jpg",
+  "seconds": 12.93,
+  "cover_ms": 1500,
+  "too_long": [
+   [
+    12,
+    86,
+    87
+   ]
+  ],
+  "posted": {
+   "instagram": "https://www.instagram.com/reel/Dfm_gYTHCI2/",
+   "facebook": "https://www.facebook.com/reel/1862804041806024"
+  }
  }
 ]
