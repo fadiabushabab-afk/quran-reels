@@ -29,9 +29,16 @@ on:
       verses:
         description: "Test only: a specific passage, e.g. 2:255 (empty = normal rotation; never recorded)"
         default: ""
+      retry_of:
+        description: "Automatic retries only (leave empty): id of the failed run"
+        default: ""
+      attempt:
+        description: "Automatic retries only (leave 0): retry number"
+        default: "0"
 
 permissions:
   contents: write             # to commit history.json
+  actions: read               # a retry reads the failed run's files
 
 concurrency:
   group: daily-reel
@@ -55,8 +62,27 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      - name: Check the failed run (automatic retries only)
+        id: prev
+        if: github.event.inputs.retry_of != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Retry ${{ github.event.inputs.attempt }} of failed run ${{ github.event.inputs.retry_of }}"
+          gh run download "${{ github.event.inputs.retry_of }}" --repo "${{ github.repository }}" -D prev || true
+          pub=$(find prev -name published.json | head -1)
+          vid=$(find prev -name reel.mp4 | head -1)
+          if [ -n "$pub" ] && [ -n "$vid" ] && python -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if any('permalink' in d.get(k,{}) for k in ('instagram','facebook')) else 1)" "$pub"; then
+            echo "Part of the reel already went out: reusing the same video, posting only where it failed"
+            mkdir -p out && cp "$(dirname "$vid")"/* out/
+            echo "published=$PWD/$pub" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing went out: generating a new reel"
+          fi
+
       - name: Generate reel
         id: gen
+        if: steps.prev.outputs.published == ''
         run: |
           python -c "from PIL import features; print('raqm:', features.check('raqm'))"
           set +e
@@ -93,4 +119,42 @@ jobs:
           IG_HANDLE: ${{ vars.HANDLE || '@quran_reflections_waqf' }}
           MEDIA_REPO: ${{ vars.MEDIA_REPO }}          # optional public repo for the Instagram fallback
           MEDIA_TOKEN: ${{ secrets.MEDIA_TOKEN }}
+          RETRY_PREV: ${{ steps.prev.outputs.published }}
         run: python publish.py out     # also commits history.json when something was posted
+
+      - name: Save what was posted (read by an automatic retry)
+        if: always() && steps.pub.outcome != 'skipped'
+        uses: actions/upload-artifact@v6
+        with:
+          name: result-${{ github.run_number }}
+          path: |
+            out/published.json
+            out/history_entry.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  retry:
+    # A scheduled run (or a retry) that failed while generating or posting: wait 45 min, then run again.
+    # Up to MAX_RETRIES times (repository variable, default 2). Manual test runs are never retried.
+    needs: reel
+    if: >-
+      failure() &&
+      (github.event_name == 'schedule' || github.event.inputs.retry_of != '') &&
+      fromJSON(github.event.inputs.attempt || '0') < fromJSON(vars.MAX_RETRIES || '2')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Wait 45 minutes
+        run: sleep ${{ vars.RETRY_DELAY_SEC || 2700 }}
+      - name: Start the retry run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          next=$(( ${{ github.event.inputs.attempt || '0' }} + 1 ))
+          gh workflow run daily-reel.yml --repo "${{ github.repository }}" --ref "${{ github.ref_name }}" \
+            -f publish=true -f retry_of="${{ github.run_id }}" -f attempt="$next" \
+            -f platforms="${{ github.event.inputs.platforms || 'instagram,facebook' }}"
+          echo "::notice title=Retry $next started::the reel is being made again after the failure of run ${{ github.run_id }}"

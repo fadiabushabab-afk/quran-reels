@@ -28,6 +28,12 @@ Makes a daily 1080x1920 Quran video.
   never blocks the reel or the history entry; it shows as an error note on the run. Turn stories
   off with the repository variable `STORIES=false`, untick "story" on a manual run, or add
   `nostory` to the platforms box. Story links are saved under `stories` in `history.json`.
+- **Automatic retry:** if a scheduled run fails (making the video or posting it), the workflow
+  waits 45 minutes and runs again, up to 2 times (repository variables `MAX_RETRIES`, and
+  `RETRY_DELAY_SEC` = 2700, change this). If nothing went out, a new video is made. If the reel
+  already went out on one platform, the same video is posted only where it failed, so nothing is
+  posted twice, and the existing `history.json` record is completed. Manual test runs are not
+  retried. GitHub still emails you about the failed run; a later green run means the retry worked.
 - **Background:** an image from `backgrounds/` (the user's library, synced from their
   "Holy Quran" folder). The least recently used image is chosen, so all get a turn, and no image is reused within 10 days. Each image is
   animated by `motion.py`: soft warm light rays from above, dust floating almost still in the light,

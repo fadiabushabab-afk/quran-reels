@@ -13,6 +13,9 @@ Environment (GitHub secrets / variables):
   HISTORY           history file to append to (default history.json)
   FORCE             "true" to post even if today's reel is already out (normally one post per day);
                     manual runs can also add "force" to the platforms box, e.g. instagram,facebook,force
+  RETRY_PREV        set by automatic retries: the published.json of the failed run. Platforms that
+                    already have the reel are not posted again (same video, reused), and the
+                    history entry for that reel is completed instead of a new one being added.
   STORIES           "true" (default) to also share the same video to the Instagram and Facebook Page
                     Story right after each reel goes out; "false" to post reels only. Manual runs can
                     also add "nostory" to the platforms box.
@@ -204,6 +207,15 @@ def page_token_from(token, page_id):
         return token
 
 
+def same_reel(a, b):
+    return all(a.get(k) == b.get(k) for k in ("date", "surah", "start", "end"))
+
+
+def merged(history, entry):
+    """history with entry added, replacing an earlier record of the same reel (a retry completing it)."""
+    return [h for h in history if not same_reel(h, entry)] + [entry]
+
+
 def record(meta, results, path, stories=None):
     """Append the passage to history once anything was posted (never for --surah test runs).
     Returns False only if it should have been saved and could not be."""
@@ -224,7 +236,7 @@ def record(meta, results, path, stories=None):
         return save_history_to_github(entry, path)
     history = load_history(path)
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(history + [entry], f, ensure_ascii=False, indent=1)
+        json.dump(merged(history, entry), f, ensure_ascii=False, indent=1)
     return True
 
 
@@ -249,7 +261,7 @@ def save_history_to_github(entry, path):
             if entry in history:
                 return True
             with open(path, "w", encoding="utf-8") as f:
-                json.dump(history + [entry], f, ensure_ascii=False, indent=1)
+                json.dump(merged(history, entry), f, ensure_ascii=False, indent=1)
             git("add", path)
             git("commit", "-q", "-m", "history: " + json.dumps(entry, ensure_ascii=False))
             git("push", "-q", "origin", f"HEAD:{BRANCH}")
@@ -301,6 +313,17 @@ def main():
     platforms = {x.strip().lower() for x in os.environ.get("PLATFORMS", "instagram,facebook").split(",")}
     force = os.environ.get("FORCE", "").lower() == "true" or "force" in platforms
     want_story = os.environ.get("STORIES", "true").lower() != "false" and "nostory" not in platforms
+    before, stories_before = {}, {}
+    if os.environ.get("RETRY_PREV"):
+        with open(os.environ["RETRY_PREV"], encoding="utf-8") as f:
+            prev = json.load(f)
+        before = {k: v for k, v in prev.items() if k in ("instagram", "facebook")
+                  and ("permalink" in v or "skipped" in v)}
+        stories_before = {k: v for k, v in prev.get("stories", {}).items() if "error" not in v}
+        platforms -= set(before)
+        force = True        # today's record is this same reel; we are completing it
+        print("::notice title=Retry of a failed run::already out on " + (", ".join(before) or "nothing")
+              + "; posting to " + (", ".join(sorted(platforms & {"instagram", "facebook"})) or "nothing (saving history only)"))
     if done and not force:
         print(f"::notice title=Not posted::today's reel ({done[-1].get('title')}) is already out; "
               "one post per day (add force to the platforms box to post anyway)")
@@ -345,10 +368,12 @@ def main():
             print("::error title=Facebook post failed::" + str(e).replace("\n", " "))
         share_story("facebook", lambda: post_facebook_story(token, page_id, video))
 
+    new_failed = any("error" in r for r in results.values())
+    results, stories = {**before, **results}, {**stories_before, **stories}
     with open(os.path.join(OUT, "published.json"), "w", encoding="utf-8") as f:
         json.dump({**results, "stories": stories}, f, ensure_ascii=False, indent=2)
     saved = record(meta, results, hist_path, stories)
-    failed = any("error" in r for r in results.values()) or not saved
+    failed = new_failed or not saved
     return 1 if failed else 0    # red run -> GitHub emails you
 
 
