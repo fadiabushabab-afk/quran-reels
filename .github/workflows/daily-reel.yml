@@ -16,6 +16,10 @@ on:
       platforms:
         description: "Where to post (comma separated)"
         default: "instagram,facebook"
+      story:
+        description: "Also share the reel to the Instagram and Facebook Story?"
+        type: boolean
+        default: true
       date:
         description: "Test only: pretend today is YYYY-MM-DD (empty = real date)"
         default: ""
@@ -77,7 +81,7 @@ jobs:
           path: out/
           retention-days: 14
 
-      - name: Publish to Instagram / Facebook
+      - name: Publish to Instagram / Facebook (reel + story)
         id: pub
         if: github.event_name == 'schedule' || github.event.inputs.publish == 'true'
         env:
@@ -85,6 +89,8 @@ jobs:
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           PLATFORMS: ${{ github.event.inputs.platforms || 'instagram,facebook' }}
+          STORIES: ${{ github.event.inputs.story || vars.STORIES || 'true' }}   # scheduled runs: on unless the STORIES variable is false
+          IG_HANDLE: ${{ vars.HANDLE || '@quran_reflections_waqf' }}
           MEDIA_REPO: ${{ vars.MEDIA_REPO }}          # optional public repo for the Instagram fallback
           MEDIA_TOKEN: ${{ secrets.MEDIA_TOKEN }}
         run: python publish.py out     # also commits history.json when something was posted

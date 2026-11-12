@@ -13,6 +13,13 @@ Environment (GitHub secrets / variables):
   HISTORY           history file to append to (default history.json)
   FORCE             "true" to post even if today's reel is already out (normally one post per day);
                     manual runs can also add "force" to the platforms box, e.g. instagram,facebook,force
+  STORIES           "true" (default) to also share the same video to the Instagram and Facebook Page
+                    Story right after each reel goes out; "false" to post reels only. Manual runs can
+                    also add "nostory" to the platforms box.
+
+Stories: a story is only posted on a platform whose reel just went out, so the reel and the story
+always match. Stories carry no caption (the APIs do not take one) and last 24 hours. A failed
+story never blocks the reel or the history entry; it shows as an error annotation on the run.
 
 Instagram: when MEDIA_REPO is set, the full-quality file is hosted briefly as a GitHub release
 asset and Instagram fetches it (video_url); the direct (resumable) upload is the fallback.
@@ -41,10 +48,13 @@ def call(method, url, params=None, data=None, headers=None, timeout=120):
         raise RuntimeError(f"{method} {url.split('?')[0]} -> {e.code}: {body[:600]}")
 
 
-def post_instagram(token, ig_id, video, caption, video_url=None, cover_ms=2500):
+def post_instagram(token, ig_id, video, caption, video_url=None, cover_ms=2500, story=False):
     # 1. container: resumable (we upload the bytes) or video_url (Instagram fetches it)
-    params = {"media_type": "REELS", "caption": caption, "share_to_feed": "true",
-              "thumb_offset": str(int(cover_ms)), "access_token": token}   # cover = first verse on screen
+    if story:   # stories take no caption, feed flag or cover
+        params = {"media_type": "STORIES", "access_token": token}
+    else:
+        params = {"media_type": "REELS", "caption": caption, "share_to_feed": "true",
+                  "thumb_offset": str(int(cover_ms)), "access_token": token}   # cover = first verse on screen
     params.update({"video_url": video_url} if video_url else {"upload_type": "resumable"})
     cid = call("POST", f"{GRAPH}/{ig_id}/media", params)["id"]
     # 2. upload the bytes
@@ -71,7 +81,13 @@ def post_instagram(token, ig_id, video, caption, video_url=None, cover_ms=2500):
     # 4. publish
     pub = call("POST", f"{GRAPH}/{ig_id}/media_publish", {"creation_id": cid, "access_token": token})
     media_id = pub["id"]
-    link = call("GET", f"{GRAPH}/{media_id}", {"fields": "permalink", "access_token": token}).get("permalink")
+    try:
+        link = call("GET", f"{GRAPH}/{media_id}", {"fields": "permalink", "access_token": token}).get("permalink")
+    except Exception:
+        link = None
+    if not link and story:
+        handle = os.environ.get("IG_HANDLE", "").lstrip("@")
+        link = f"https://www.instagram.com/stories/{handle}/{media_id}/" if handle else f"instagram story {media_id}"
     return {"id": media_id, "permalink": link}
 
 
@@ -115,30 +131,33 @@ def host_on_github(repo, token, video):
     return asset["browser_download_url"], cleanup
 
 
-def instagram(token, ig_id, video, caption, cover_ms=2500):
+def instagram(token, ig_id, video, caption, cover_ms=2500, story=False):
     repo, gh_token = os.environ.get("MEDIA_REPO"), os.environ.get("MEDIA_TOKEN")
+    what = "story" if story else "reel"
+
+    def post(path, url=None):
+        return post_instagram(token, ig_id, path, caption, video_url=url, cover_ms=cover_ms, story=story)
 
     def hosted(path):
         url, cleanup = host_on_github(repo, gh_token, path)
         try:
-            return post_instagram(token, ig_id, path, caption, video_url=url, cover_ms=cover_ms)
+            return post(path, url)
         finally:
             cleanup()
 
-    attempts = [("direct upload", lambda: post_instagram(token, ig_id, video, caption, cover_ms=cover_ms))]
+    attempts = [("direct upload", lambda: post(video))]
     if repo and gh_token:
         attempts.insert(0, ("hosted URL", lambda: hosted(video)))
         attempts.append(("lighter encode, hosted URL", lambda: hosted(safe_copy(video))))
     else:
-        attempts.append(("lighter encode", lambda: post_instagram(token, ig_id, safe_copy(video), caption,
-                                                                  cover_ms=cover_ms)))
+        attempts.append(("lighter encode", lambda: post(safe_copy(video))))
     for i, (name, attempt) in enumerate(attempts):
         try:
             return attempt()
         except Exception as e:
             if i == len(attempts) - 1:
                 raise
-            print(f"::warning title=Instagram {name} refused, trying {attempts[i + 1][0]}::{str(e)[:200]}")
+            print(f"::warning title=Instagram {what} {name} refused, trying {attempts[i + 1][0]}::{str(e)[:200]}")
 
 
 def post_facebook(token, page_id, video, caption):
@@ -156,6 +175,24 @@ def post_facebook(token, page_id, video, caption):
     return {"id": vid, "permalink": f"https://www.facebook.com/reel/{vid}"}
 
 
+def post_facebook_story(token, page_id, video):
+    """Page video story: start -> upload bytes -> finish (same upload host as Reels)."""
+    s = call("POST", f"{GRAPH}/{page_id}/video_stories", {"upload_phase": "start", "access_token": token})
+    vid = s["video_id"]
+    size = os.path.getsize(video)
+    with open(video, "rb") as f:
+        call("POST", s.get("upload_url") or f"https://rupload.facebook.com/video-upload/{V}/{vid}",
+             data=f.read(),
+             headers={"Authorization": f"OAuth {token}", "offset": "0", "file_size": str(size),
+                      "Content-Type": "application/octet-stream"},
+             timeout=600)
+    fin = call("POST", f"{GRAPH}/{page_id}/video_stories", {
+        "upload_phase": "finish", "video_id": vid, "access_token": token})
+    if fin.get("success") is False:
+        raise RuntimeError(f"Facebook story not published: {fin}")
+    return {"id": fin.get("post_id") or vid, "permalink": f"https://www.facebook.com/stories/{page_id}"}
+
+
 def page_token_from(token, page_id):
     """Accept a Page token or a (system-)user token: if the Page hands out its own token, use it."""
     if not page_id:
@@ -167,7 +204,7 @@ def page_token_from(token, page_id):
         return token
 
 
-def record(meta, results, path):
+def record(meta, results, path, stories=None):
     """Append the passage to history once anything was posted (never for --surah test runs).
     Returns False only if it should have been saved and could not be."""
     posted = {k: v["permalink"] for k, v in results.items() if "permalink" in v}
@@ -178,6 +215,9 @@ def record(meta, results, path):
     failed = [k for k, v in results.items() if "error" in v]
     if failed:
         entry["failed"] = failed
+    story_links = {k: v["permalink"] for k, v in (stories or {}).items() if "permalink" in v}
+    if story_links:
+        entry["stories"] = story_links
     with open(os.path.join(OUT, "history_entry.json"), "w", encoding="utf-8") as f:
         json.dump(entry, f, ensure_ascii=False, indent=1)
     if os.environ.get("GITHUB_ACTIONS"):
@@ -260,12 +300,29 @@ def main():
     done = already_posted(meta, hist_path)
     platforms = {x.strip().lower() for x in os.environ.get("PLATFORMS", "instagram,facebook").split(",")}
     force = os.environ.get("FORCE", "").lower() == "true" or "force" in platforms
+    want_story = os.environ.get("STORIES", "true").lower() != "false" and "nostory" not in platforms
     if done and not force:
         print(f"::notice title=Not posted::today's reel ({done[-1].get('title')}) is already out; "
               "one post per day (add force to the platforms box to post anyway)")
         return 0
 
-    results = {}
+    results, stories = {}, {}
+
+    def share_story(name, fn):
+        """Same video to the Story, only after that platform's reel went out. Never fails the run."""
+        if not want_story or "permalink" not in results.get(name, {}):
+            return
+        if seconds > 60:
+            stories[name] = {"skipped": f"video is {seconds:.0f} s; Stories take 60 s"}
+            print(f"::notice title={name.title()} story skipped::video is {seconds:.0f} s (Stories take 60 s)")
+            return
+        try:
+            stories[name] = fn()
+            print(f"::notice title=Shared to {name.title()} story::" + str(stories[name]["permalink"]))
+        except Exception as e:
+            stories[name] = {"error": str(e)}
+            print(f"::error title={name.title()} story failed (reel is up)::" + str(e).replace("\n", " "))
+
     if "instagram" in platforms:
         try:
             results["instagram"] = instagram(user_token, ig_id, video, caption, meta.get("cover_ms", 2500))
@@ -273,6 +330,7 @@ def main():
         except Exception as e:
             results["instagram"] = {"error": str(e)}
             print("::error title=Instagram post failed::" + str(e).replace("\n", " "))
+        share_story("instagram", lambda: instagram(user_token, ig_id, video, caption, story=True))
 
     page_id = os.environ.get("FB_PAGE_ID")
     if page_id and "facebook" in platforms and seconds > 90:
@@ -285,10 +343,11 @@ def main():
         except Exception as e:
             results["facebook"] = {"error": str(e)}
             print("::error title=Facebook post failed::" + str(e).replace("\n", " "))
+        share_story("facebook", lambda: post_facebook_story(token, page_id, video))
 
     with open(os.path.join(OUT, "published.json"), "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
-    saved = record(meta, results, hist_path)
+        json.dump({**results, "stories": stories}, f, ensure_ascii=False, indent=2)
+    saved = record(meta, results, hist_path, stories)
     failed = any("error" in r for r in results.values()) or not saved
     return 1 if failed else 0    # red run -> GitHub emails you
 

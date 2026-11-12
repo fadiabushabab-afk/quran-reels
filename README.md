@@ -22,6 +22,12 @@ Makes a daily 1080x1920 Quran video.
 - **Cover:** the Instagram cover is a frame from the first verse (not the basmala), and the very
   first frame already shows the text (Facebook uses it as the cover), so covers
   differ from reel to reel.
+- **Stories:** right after the reel goes out on Instagram and on the Facebook Page, the same video
+  is shared to that account's Story (no caption; stories last 24 h). A story is only posted where
+  the reel succeeded, and videos over 60 s (the Friday Al-Kahf reels) get no story. A failed story
+  never blocks the reel or the history entry; it shows as an error note on the run. Turn stories
+  off with the repository variable `STORIES=false`, untick "story" on a manual run, or add
+  `nostory` to the platforms box. Story links are saved under `stories` in `history.json`.
 - **Background:** an image from `backgrounds/` (the user's library, synced from their
   "Holy Quran" folder). The least recently used image is chosen, so all get a turn, and no image is reused within 10 days. Each image is
   animated by `motion.py`: soft warm light rays from above, dust floating almost still in the light,
