@@ -330,5 +330,21 @@
    "instagram": "https://www.instagram.com/stories/quran_reflections_waqf/4028873220165939089",
    "facebook": "https://www.facebook.com/stories/1332221749985686"
   }
+ },
+ {
+  "date": "2026-11-13",
+  "surah": 18,
+  "start": 101,
+  "end": 110,
+  "group": 1,
+  "friday": true,
+  "title": "آخر عشر آيات من سورة الكهف",
+  "reciter": "maher",
+  "background": "video: 364472_medium.mp4",
+  "seconds": 131.5,
+  "cover_ms": 1500,
+  "posted": {
+   "instagram": "https://www.instagram.com/reel/DfrE7yolRFh/"
+  }
  }
 ]
