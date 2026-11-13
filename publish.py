@@ -17,10 +17,13 @@ Environment (GitHub secrets / variables):
                     already have the reel are not posted again (same video, reused), and the
                     history entry for that reel is completed instead of a new one being added.
   STORIES           "true" (default) to also share the same video to the Instagram and Facebook Page
-                    Story right after each reel goes out; "false" to post reels only. Manual runs can
+                    Story (never on Fridays) right after each reel goes out; "false" to post reels only. Manual runs can
                     also add "nostory" to the platforms box.
 
-Stories: a story is only posted on a platform whose reel just went out, so the reel and the story
+Facebook: up to 90 s the video goes out as a Reel; longer (the Friday Al-Kahf reels) as a regular
+Page video, since Facebook Reels stop at 90 s.
+
+Stories: none on Fridays. Otherwise a story is only posted on a platform whose reel just went out, so the reel and the story
 always match. Stories carry no caption (the APIs do not take one) and last 24 hours. A failed
 story never blocks the reel or the history entry; it shows as an error annotation on the run.
 
@@ -178,6 +181,23 @@ def post_facebook(token, page_id, video, caption):
     return {"id": vid, "permalink": f"https://www.facebook.com/reel/{vid}"}
 
 
+def post_facebook_video(token, page_id, video, caption):
+    """Regular Page video, for videos longer than Facebook Reels allow (the Friday Al-Kahf reels).
+    One multipart upload; Page videos may run far longer than 3 min."""
+    boundary = f"----quranreels{int(time.time() * 1000)}"
+    parts = []
+    for name, value in (("description", caption), ("published", "true"), ("access_token", token)):
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
+    with open(video, "rb") as f:
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="source"; filename="reel.mp4"\r\n'
+                     f'Content-Type: video/mp4\r\n\r\n'.encode() + f.read() + b"\r\n")
+    parts.append(f"--{boundary}--\r\n".encode())
+    r = call("POST", f"https://graph-video.facebook.com/{V}/{page_id}/videos", data=b"".join(parts),
+             headers={"Content-Type": f"multipart/form-data; boundary={boundary}"}, timeout=900)
+    vid = r["id"]
+    return {"id": vid, "permalink": f"https://www.facebook.com/{page_id}/videos/{vid}"}
+
+
 def post_facebook_story(token, page_id, video):
     """Page video story: start -> upload bytes -> finish (same upload host as Reels)."""
     s = call("POST", f"{GRAPH}/{page_id}/video_stories", {"upload_phase": "start", "access_token": token})
@@ -317,8 +337,7 @@ def main():
     if os.environ.get("RETRY_PREV"):
         with open(os.environ["RETRY_PREV"], encoding="utf-8") as f:
             prev = json.load(f)
-        before = {k: v for k, v in prev.items() if k in ("instagram", "facebook")
-                  and ("permalink" in v or "skipped" in v)}
+        before = {k: v for k, v in prev.items() if k in ("instagram", "facebook") and "permalink" in v}
         stories_before = {k: v for k, v in prev.get("stories", {}).items() if "error" not in v}
         platforms -= set(before)
         force = True        # today's record is this same reel; we are completing it
@@ -334,6 +353,10 @@ def main():
     def share_story(name, fn):
         """Same video to the Story, only after that platform's reel went out. Never fails the run."""
         if not want_story or "permalink" not in results.get(name, {}):
+            return
+        if meta.get("friday"):
+            stories[name] = {"skipped": "Friday: no story"}
+            print(f"::notice title={name.title()} story skipped::no stories on Fridays")
             return
         if seconds > 60:
             stories[name] = {"skipped": f"video is {seconds:.0f} s; Stories take 60 s"}
@@ -356,12 +379,13 @@ def main():
         share_story("instagram", lambda: instagram(user_token, ig_id, video, caption, story=True))
 
     page_id = os.environ.get("FB_PAGE_ID")
-    if page_id and "facebook" in platforms and seconds > 90:
-        results["facebook"] = {"skipped": f"video is {seconds:.0f} s; Facebook Reels allow 90 s"}
-        print(f"::notice title=Facebook skipped::video is {seconds:.0f} s (Facebook Reels allow 90 s)")
-    elif page_id and "facebook" in platforms:
+    if page_id and "facebook" in platforms:
         try:
-            results["facebook"] = post_facebook(token, page_id, video, caption)
+            if seconds > 90:    # Friday Al-Kahf: too long for a Facebook Reel, so a regular Page video
+                print(f"video is {seconds:.0f} s (Facebook Reels allow 90 s): posting as a Page video")
+                results["facebook"] = post_facebook_video(token, page_id, video, caption)
+            else:
+                results["facebook"] = post_facebook(token, page_id, video, caption)
             print("::notice title=Posted to Facebook::" + str(results["facebook"]["permalink"]))
         except Exception as e:
             results["facebook"] = {"error": str(e)}

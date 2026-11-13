@@ -5,8 +5,8 @@ Makes a daily 1080x1920 Quran video.
 - **Daily order:** groups rotate (virtue passage → short surah → thematic passage); Fridays use
   the first or last ten verses of Al-Kahf, alternating. One post per day: a second run on the same
   day does not post (manual runs can tick "force" to override).
-- **Length:** weekday reels are at most 30 s (since 5 Nov 2026; was 60 s), comforting and short passages are tried first (`COMFORT` in `passages.py`) (Fridays up to ~3 min for Al-Kahf; Facebook only receives
-  videos of 90 s or less). A longer passage is posted one complete ruku' section at a time (the
+- **Length:** weekday reels are at most 30 s (since 5 Nov 2026; was 60 s), comforting and short passages are tried first (`COMFORT` in `passages.py`) (Fridays up to ~3 min for Al-Kahf; on Facebook these go out as a regular Page video,
+  since Facebook Reels stop at 90 s). A longer passage is posted one complete ruku' section at a time (the
   traditional thematic divisions of the mushaf), continuing with the next section the next time
   the passage comes round. A passage with no section short enough is skipped.
 - **Passages:** chosen from `passages.py`: short surahs in full (opened with the basmala) and
@@ -24,7 +24,7 @@ Makes a daily 1080x1920 Quran video.
   differ from reel to reel.
 - **Stories:** right after the reel goes out on Instagram and on the Facebook Page, the same video
   is shared to that account's Story (no caption; stories last 24 h). A story is only posted where
-  the reel succeeded, and videos over 60 s (the Friday Al-Kahf reels) get no story. A failed story
+  the reel succeeded. No stories on Fridays (the Al-Kahf reels), or for any video over 60 s. A failed story
   never blocks the reel or the history entry; it shows as an error note on the run. Turn stories
   off with the repository variable `STORIES=false`, untick "story" on a manual run, or add
   `nostory` to the platforms box. Story links are saved under `stories` in `history.json`.
