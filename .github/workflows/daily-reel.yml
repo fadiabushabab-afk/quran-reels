@@ -20,8 +20,8 @@ on:
         type: boolean
         default: false
       platforms:
-        description: "Where to post (comma separated)"
-        default: "instagram,facebook"
+        description: "Where to post, comma separated: instagram,facebook,tiktok (empty = the PLATFORMS variable)"
+        default: ""
       story:
         description: "Also share the reel to the Instagram and Facebook Story?"
         type: boolean
@@ -123,7 +123,7 @@ jobs:
           gh run download "${{ github.event.inputs.retry_of }}" --repo "${{ github.repository }}" -D prev || true
           pub=$(find prev -name published.json | head -1)
           vid=$(find prev -name reel.mp4 | head -1)
-          if [ -n "$pub" ] && [ -n "$vid" ] && python -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if any('permalink' in d.get(k,{}) for k in ('instagram','facebook')) else 1)" "$pub"; then
+          if [ -n "$pub" ] && [ -n "$vid" ] && python -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if any('permalink' in d.get(k,{}) for k in ('instagram','facebook','tiktok')) else 1)" "$pub"; then
             echo "Part of the reel already went out: reusing the same video, posting only where it failed"
             mkdir -p out && cp "$(dirname "$vid")"/* out/
             echo "published=$PWD/$pub" >> "$GITHUB_OUTPUT"
@@ -165,12 +165,17 @@ jobs:
           META_PAGE_TOKEN: ${{ secrets.META_PAGE_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
-          PLATFORMS: ${{ github.event.inputs.platforms || 'instagram,facebook' }}
+          PLATFORMS: ${{ github.event.inputs.platforms || vars.PLATFORMS || 'instagram,facebook' }}
           STORIES: ${{ github.event.inputs.story || vars.STORIES || 'true' }}   # scheduled runs: on unless the STORIES variable is false
           IG_HANDLE: ${{ vars.HANDLE || '@quran_reflections_waqf' }}
           MEDIA_REPO: ${{ vars.MEDIA_REPO }}          # optional public repo for the Instagram fallback
           MEDIA_TOKEN: ${{ secrets.MEDIA_TOKEN }}
           RETRY_PREV: ${{ steps.prev.outputs.published }}
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
+          TIKTOK_PRIVACY: ${{ vars.TIKTOK_PRIVACY }}
+          GH_ADMIN_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}   # saves TikTok's rotated refresh token
         run: python publish.py out     # also commits history.json when something was posted
 
       - name: Save what was posted (read by an automatic retry)
@@ -207,5 +212,5 @@ jobs:
           next=$(( ${{ github.event.inputs.attempt || '0' }} + 1 ))
           gh workflow run daily-reel.yml --repo "${{ github.repository }}" --ref "${{ github.ref_name }}" \
             -f publish=true -f retry_of="${{ github.run_id }}" -f attempt="$next" \
-            -f platforms="${{ github.event.inputs.platforms || 'instagram,facebook' }}"
+            -f platforms="${{ github.event.inputs.platforms || vars.PLATFORMS || 'instagram,facebook' }}"
           echo "::notice title=Retry $next started::the reel is being made again after the failure of run ${{ github.run_id }}"

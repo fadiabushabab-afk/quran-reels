@@ -6,7 +6,9 @@ Environment (GitHub secrets / variables):
   META_PAGE_TOKEN   System-user (or Page) token
   IG_USER_ID        Instagram professional account id (instagram_business_account.id)
   FB_PAGE_ID        Facebook Page id (optional; Facebook posting needs pages_manage_posts)
-  PLATFORMS         comma list: instagram,facebook (default both)
+  PLATFORMS         comma list: instagram,facebook,tiktok (default instagram,facebook)
+  TIKTOK_*          TikTok app keys and refresh token: see tiktok.py. TikTok gets the reel only, no
+                    story, and only when "tiktok" is in PLATFORMS and the TikTok secrets are set.
   GRAPH_VERSION     Graph API version (default v26.0)
   MEDIA_REPO        optional public repo "owner/name" used to host the video for Instagram
   MEDIA_TOKEN       token with Contents read/write on MEDIA_REPO
@@ -36,6 +38,7 @@ Writes out/published.json. When at least one platform posted, appends the passag
 to history.json, so a partly failed run never re-posts it to the platform that worked.
 """
 import json, os, subprocess, sys, time, urllib.error, urllib.parse, urllib.request
+import tiktok
 
 V = os.environ.get("GRAPH_VERSION", "v26.0")
 GRAPH = f"https://graph.facebook.com/{V}"
@@ -337,12 +340,12 @@ def main():
     if os.environ.get("RETRY_PREV"):
         with open(os.environ["RETRY_PREV"], encoding="utf-8") as f:
             prev = json.load(f)
-        before = {k: v for k, v in prev.items() if k in ("instagram", "facebook") and "permalink" in v}
+        before = {k: v for k, v in prev.items() if k in ("instagram", "facebook", "tiktok") and "permalink" in v}
         stories_before = {k: v for k, v in prev.get("stories", {}).items() if "error" not in v}
         platforms -= set(before)
         force = True        # today's record is this same reel; we are completing it
         print("::notice title=Retry of a failed run::already out on " + (", ".join(before) or "nothing")
-              + "; posting to " + (", ".join(sorted(platforms & {"instagram", "facebook"})) or "nothing (saving history only)"))
+              + "; posting to " + (", ".join(sorted(platforms & {"instagram", "facebook", "tiktok"})) or "nothing (saving history only)"))
     if done and not force:
         print(f"::notice title=Not posted::today's reel ({done[-1].get('title')}) is already out; "
               "one post per day (add force to the platforms box to post anyway)")
@@ -391,6 +394,21 @@ def main():
             results["facebook"] = {"error": str(e)}
             print("::error title=Facebook post failed::" + str(e).replace("\n", " "))
         share_story("facebook", lambda: post_facebook_story(token, page_id, video))
+
+    if "tiktok" in platforms:
+        missing = [k for k in ("TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET", "TIKTOK_REFRESH_TOKEN")
+                   if not os.environ.get(k)]
+        if missing:
+            print("::warning title=TikTok skipped::not connected yet (missing " + ", ".join(missing) + ")")
+        else:
+            try:
+                results["tiktok"] = tiktok.post(video, caption, meta.get("cover_ms", 1000), seconds)
+                note = "" if results["tiktok"]["privacy"] == "PUBLIC_TO_EVERYONE" else \
+                    f" (visible as {results['tiktok']['privacy']})"
+                print("::notice title=Posted to TikTok" + note + "::" + results["tiktok"]["permalink"])
+            except Exception as e:
+                results["tiktok"] = {"error": str(e)}
+                print("::error title=TikTok post failed::" + str(e).replace("\n", " "))
 
     new_failed = any("error" in r for r in results.values())
     results, stories = {**before, **results}, {**stories_before, **stories}

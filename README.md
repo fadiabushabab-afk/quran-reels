@@ -56,3 +56,19 @@ Python 3.9+, ffmpeg on PATH, Pillow with libraqm (`pip install -r requirements.t
 Output goes to `out/`: reel.mp4, caption.txt, meta.json.
 Put your own photos (jpg/png) or video clips (mp4, prepared by `sync_backgrounds.py` as 1080x1920 seamless loops) in `backgrounds/` to use them instead of the generated gradient. Names in `background_exclude.txt` are never synced.
 `history.json` remembers used passages.
+
+## TikTok
+
+Posting code: `tiktok.py` (Direct Post, file upload). TikTok gets the reel only (no story), and only
+when the repository variable `PLATFORMS` includes `tiktok` and these are set:
+
+| Name | Kind | What |
+|---|---|---|
+| `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` | secrets | from the TikTok developer app |
+| `TIKTOK_REDIRECT_URI` | variable | the redirect URI registered under Login Kit |
+| `GH_ADMIN_TOKEN` | secret | fine-grained GitHub token, this repo only, Secrets: read and write (saves TikTok's rotating refresh token) |
+| `TIKTOK_REFRESH_TOKEN` | secret | written by the **TikTok connect** workflow; do not set by hand |
+| `TIKTOK_PRIVACY` | variable | optional, default `PUBLIC_TO_EVERYONE` |
+
+Until TikTok audits the developer app, every post is private (visible only to the account) and the
+account itself must be set to private. After the audit, posts go out public.
