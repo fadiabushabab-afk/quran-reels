@@ -4,7 +4,13 @@ on:
   schedule:
     - cron: "7 15 * * 0-4,6"  # 18:07 Baghdad, Saturday-Thursday (off the hour: :00 jobs are often delayed)
     - cron: "7 6 * * 5"       # 09:07 Baghdad on Friday, so Al-Kahf goes out within Friday (ends at Maghrib)
-  workflow_dispatch:          # "Run workflow" button for manual runs
+    # Watchdogs: GitHub sometimes drops a scheduled run entirely (no run, so no retry either).
+    # These make the reel only if nothing has run or been posted today (see the guard job).
+    - cron: "7 16 * * 0-4,6"  # 19:07 Baghdad
+    - cron: "7 18 * * 0-4,6"  # 21:07 Baghdad
+    - cron: "37 7 * * 5"      # 10:37 Baghdad, Friday
+    - cron: "37 9 * * 5"      # 12:37 Baghdad, Friday
+  workflow_dispatch:         # "Run workflow" button for manual runs
     inputs:
       reciter:
         description: "Reciter key (or random)"
@@ -45,7 +51,52 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  guard:
+    # Scheduled runs only: skip if today's reel is already in history.json (one post per day).
+    # Watchdog runs also skip if any other run of this workflow started today, since a failed
+    # run is already handled by its own 45-minute retry.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      go: ${{ steps.check.outputs.go }}
+    steps:
+      - uses: actions/checkout@v5
+        if: github.event_name == 'schedule'
+      - name: Decide whether to make a reel
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          SCHED: ${{ github.event.schedule }}
+        run: |
+          if [ "$EVENT" != "schedule" ]; then echo "go=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          today=$(TZ=Asia/Baghdad date +%F)
+          posted=$(python3 -c "import json,sys; h=json.load(open('history.json')); h=h if isinstance(h,list) else h.get('entries',h.get('history',[])); print('yes' if any(isinstance(e,dict) and e.get('date')==sys.argv[1] and e.get('posted') for e in h) else 'no')" "$today" || echo "no")
+          if [ "$posted" = "yes" ]; then
+            echo "::notice title=Already posted today::today's reel ($today) is already in history.json; nothing to do"
+            echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          case "$SCHED" in
+            "7 15 * * 0-4,6"|"7 6 * * 5") echo "go=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
+          esac
+          # Watchdog: has anything else run today (Baghdad day)?
+          start=$(date -u -d "TZ=\"Asia/Baghdad\" $today 00:00" +%Y-%m-%dT%H:%M:%SZ)
+          if ! others=$(gh run list --repo "${{ github.repository }}" --workflow daily-reel.yml --created ">=$start" -L 50 \
+                          --json databaseId --jq '[.[] | select(.databaseId != ${{ github.run_id }})] | length'); then
+            echo "::warning title=Watchdog could not check runs::skipping to avoid a double post"
+            echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ "$others" -gt 0 ]; then
+            echo "::notice title=Watchdog: nothing to do::$others other run(s) today; failures are handled by their own retry"
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Scheduled run was skipped by GitHub::no run today ($today); the watchdog is making today's reel"
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+
   reel:
+    needs: guard
+    if: needs.guard.outputs.go == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
