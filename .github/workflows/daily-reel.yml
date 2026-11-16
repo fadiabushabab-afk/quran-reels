@@ -71,6 +71,15 @@ jobs:
         run: |
           if [ "$EVENT" != "schedule" ]; then echo "go=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           today=$(TZ=Asia/Baghdad date +%F)
+          # GitHub can start a scheduled run hours late. A run that lands after midnight would
+          # post the NEXT day's reel early (16 Nov: the 21:07 check ran at 01:43). So a scheduled
+          # run only posts after that day's slot: 18:00 Baghdad, or 09:00 on Friday.
+          hour=$((10#$(TZ=Asia/Baghdad date +%H))); dow=$(TZ=Asia/Baghdad date +%u)
+          slot=18; [ "$dow" = "5" ] && slot=9
+          if [ "$hour" -lt "$slot" ]; then
+            echo "::notice title=Too early for today's reel::scheduled run started at ${hour}:xx Baghdad (late from the day before); today's reel goes out from ${slot}:00"
+            echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
           posted=$(python3 -c "import json,sys; h=json.load(open('history.json')); h=h if isinstance(h,list) else h.get('entries',h.get('history',[])); print('yes' if any(isinstance(e,dict) and e.get('date')==sys.argv[1] and e.get('posted') for e in h) else 'no')" "$today" || echo "no")
           if [ "$posted" = "yes" ]; then
             echo "::notice title=Already posted today::today's reel ($today) is already in history.json; nothing to do"
