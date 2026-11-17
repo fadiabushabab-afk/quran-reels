@@ -24,7 +24,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from passages import PASSAGES, FRIDAY, COMFORT
 from zoneinfo import ZoneInfo
-import bgstyles, motion
+import audio_trim, bgstyles, motion
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 W, H = 1080, 1920
@@ -580,6 +580,19 @@ def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=F
     a1, a2 = real[0]["ayah"], real[-1]["ayah"]
     rng_txt = to_ar_digits(a1) if a1 == a2 else f"{to_ar_digits(a1)}–{to_ar_digits(a2)}"
     header = f"{real[0]['surah_name_ar']} · {rng_txt}"
+
+    # everyayah's verse files often run on into the reciter's in-breath for the next verse;
+    # at the end of a reel that breath is heard on its own, so finish exactly on the last word
+    last_v = verses[-1]
+    clean = os.path.join(tmp, "last_verse_clean.mp3")
+    try:
+        cut = audio_trim.trim_end(last_v["audio"], clean)
+    except Exception as e:                      # never lose a reel over this: keep the original
+        print(f"::warning title=End trim skipped::{e}")
+        cut = None
+    if cut:
+        print(f"Last verse trimmed {last_v['dur']:.2f}s -> {cut:.2f}s (reciter's breath removed)")
+        last_v.update(audio=clean, dur=cut)
 
     lst = os.path.join(tmp, "list.txt")
     with open(lst, "w") as f:
