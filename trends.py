@@ -16,7 +16,7 @@ Each part fails on its own: a missing permission never stops the reel.
 Env: META_PAGE_TOKEN, IG_USER_ID, FB_PAGE_ID (same secrets as publish.py), TREND_TAGS (optional).
 TikTok is not included: it has no official API for reading other accounts' public posts.
 """
-import datetime, json, os, re, sys
+import datetime, json, math, os, re, sys
 
 from passages import PASSAGES
 from publish import GRAPH, call, page_token_from
@@ -128,6 +128,8 @@ def own_score(r):
     """Saves and shares mean people want the verse again or for others: they weigh most."""
     reach = r.get("reach") or r.get("views") or 0
     act = 4 * r.get("saved", 0) + 4 * r.get("shares", 0) + r.get("likes", 0) + 2 * r.get("comments", 0)
+    if not reach:      # no insights permission: likes and comments per post only
+        return act / max(r.get("posts", 1), 1)
     return (act / reach) if reach >= 50 else 0.0      # too few viewers to judge
 
 
@@ -148,7 +150,8 @@ def hashtag_trends(token, ig_id):
         used.append(tag)
         for m in j.get("data", []):
             read += 1
-            w = 1 + (m.get("like_count") or 0) + 3 * (m.get("comments_count") or 0)
+            # log scale: one viral post must not outweigh many popular ones
+            w = 1 + math.log1p((m.get("like_count") or 0) + 3 * (m.get("comments_count") or 0))
             for s, v in refs_in(m.get("caption")):
                 if v:                                  # a named verse counts for that verse only
                     verses[f"{s}:{v}"] = verses.get(f"{s}:{v}", 0) + w
