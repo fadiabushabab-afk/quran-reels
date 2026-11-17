@@ -177,13 +177,36 @@ def daily_candidates(rng, history, today):
     return prefer_short(first, history, too) + prefer_short(rest, history, too), nxt
 
 
+_HOT = None
+
+
+def trending():
+    """Passages in the top quarter of trends.json scores (written daily by trends.py from our own
+    reels' saves/shares and popular Quran hashtags). Missing or broken file -> no effect."""
+    global _HOT
+    if _HOT is None:
+        _HOT = set()
+        try:
+            with open(os.path.join(HERE, "trends.json"), encoding="utf-8") as f:
+                scores = json.load(f).get("scores", {})
+            ranked = [k for k, v in sorted(scores.items(), key=lambda x: -x[1]) if v > 0]
+            for k in ranked[:max(1, len(PASSAGES) // 4)]:
+                s, rng_ = k.split(":"); a, b = rng_.split("-")
+                _HOT.add((int(s), int(a), int(b)))
+        except Exception:
+            pass
+    return _HOT
+
+
 def prefer_short(lst, history, too=()):
     """Passages found too long on an earlier day last; within the same freshness (never used before / already used), comforting passages first,
     then short ones (6 verses or fewer, likely to fit the 30-second format), then the rest.
     Python's sort is stable, so the random / least-recently-used order is kept inside each band."""
     used = {passage_key(h) for h in history}
+    hot = trending()
     return sorted(lst, key=lambda p: (p[:3] in too,
                                       p[:3] in used,
+                                      p[:3] not in hot,      # trending (trends.json) first
                                       p[:3] not in COMFORT,
                                       p[2] - p[1] + 1 > 6))
 

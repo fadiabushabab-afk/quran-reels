@@ -34,6 +34,14 @@ Makes a daily 1080x1920 Quran video.
   already went out on one platform, the same video is posted only where it failed, so nothing is
   posted twice, and the existing `history.json` record is completed. Manual test runs are not
   retried. GitHub still emails you about the failed run; a later green run means the retry worked.
+- **Trends:** the "Verse trends" workflow (`trends.py`, daily 14:23 Baghdad) reads our own reels'
+  views, reach, saves, shares, likes and comments, plus the top posts of 8 Quran hashtags on
+  Instagram (surah names, verse references and "آية الكرسي"-style names in their captions), and
+  writes `trends.json`. Inside the day's group and freshness band, passages in the top quarter of
+  those scores are picked first. Saves and shares count most. Change the hashtags with the
+  repository variable `TREND_TAGS` (Instagram allows 30 unique hashtags per 7 days). Hashtag
+  reading needs the "Instagram Public Content Access" feature on the Meta app; without it only our
+  own results are used. TikTok has no official API for this, so it is not included.
 - **Background:** an image from `backgrounds/` (the user's library, synced from their
   "Holy Quran" folder). The least recently used image is chosen, so all get a turn, and no image is reused within 10 days. Each image is
   animated by `motion.py`: soft warm light rays from above, dust floating almost still in the light,
