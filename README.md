@@ -3,8 +3,14 @@
 Makes a daily 1080x1920 Quran video.
 
 - **Daily order:** groups rotate (virtue passage → short surah → thematic passage); Fridays use
-  the first or last ten verses of Al-Kahf, alternating. One post per day: a second run on the same
-  day does not post (manual runs can tick "force" to override).
+  the first or last ten verses of Al-Kahf, alternating.
+- **Two reels a day (since 18 Nov 2026, 2-week test):** Saturday–Thursday a MORNING reel at 08:07
+  and an EVENING reel at 18:07 Baghdad; Friday stays at one (Al-Kahf, 09:07). Each continues the
+  same group rotation and background cycle. Morning reels get no Story and sometimes a morning
+  hook («آيةٌ تبدأ بها يومك»). One reel per slot: a second run for the same slot does not post
+  (manual runs choose the slot and can add "force" to override). Each history entry carries
+  `slot` (`morning` / `evening`; older entries without it are evening). To go back to one a day,
+  delete the two morning `cron` lines (`7 5 …` and `37 6 …`) in `.github/workflows/daily-reel.yml`.
 - **Length:** weekday reels are at most 30 s (since 5 Nov 2026; was 60 s), comforting and short passages are tried first (`COMFORT` in `passages.py`) (Fridays up to ~3 min for Al-Kahf; on Facebook these go out as a regular Page video,
   since Facebook Reels stop at 90 s). A longer passage is posted one complete ruku' section at a time (the
   traditional thematic divisions of the mushaf), continuing with the next section the next time
@@ -24,7 +30,7 @@ Makes a daily 1080x1920 Quran video.
   differ from reel to reel.
 - **Stories:** right after the reel goes out on Instagram and on the Facebook Page, the same video
   is shared to that account's Story (no caption; stories last 24 h). A story is only posted where
-  the reel succeeded. No stories on Fridays (the Al-Kahf reels), or for any video over 60 s. A failed story
+  the reel succeeded. No stories for the morning reel, on Fridays (the Al-Kahf reels), or for any video over 60 s. A failed story
   never blocks the reel or the history entry; it shows as an error note on the run. Turn stories
   off with the repository variable `STORIES=false`, untick "story" on a manual run, or add
   `nostory` to the platforms box. Story links are saved under `stories` in `history.json`.

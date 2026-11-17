@@ -2,10 +2,12 @@ name: Daily Quran reel
 
 on:
   schedule:
-    - cron: "7 15 * * 0-4,6"  # 18:07 Baghdad, Saturday-Thursday (off the hour: :00 jobs are often delayed)
+    - cron: "7 5 * * 0-4,6"   # 08:07 Baghdad, Saturday-Thursday: MORNING reel (no story)
+    - cron: "7 15 * * 0-4,6"  # 18:07 Baghdad, Saturday-Thursday: EVENING reel (off the hour: :00 jobs are often delayed)
     - cron: "7 6 * * 5"       # 09:07 Baghdad on Friday, so Al-Kahf goes out within Friday (ends at Maghrib)
     # Watchdogs: GitHub sometimes drops a scheduled run entirely (no run, so no retry either).
     # These make the reel only if nothing has run or been posted today (see the guard job).
+    - cron: "37 6 * * 0-4,6"  # 09:37 Baghdad (morning watchdog)
     - cron: "7 16 * * 0-4,6"  # 19:07 Baghdad
     - cron: "7 18 * * 0-4,6"  # 21:07 Baghdad
     - cron: "37 7 * * 5"      # 10:37 Baghdad, Friday
@@ -26,6 +28,11 @@ on:
         description: "Also share the reel to the Instagram and Facebook Story?"
         type: boolean
         default: true
+      slot:
+        description: "Which reel: morning or evening (morning reels get no story)"
+        type: choice
+        options: [evening, morning]
+        default: evening
       date:
         description: "Test only: pretend today is YYYY-MM-DD (empty = real date)"
         default: ""
@@ -52,13 +59,15 @@ concurrency:
 
 jobs:
   guard:
-    # Scheduled runs only: skip if today's reel is already in history.json (one post per day).
-    # Watchdog runs also skip if any other run of this workflow started today, since a failed
-    # run is already handled by its own 45-minute retry.
+    # Two reels a day, Saturday-Thursday: MORNING (08:07) and EVENING (18:07); one on Friday (09:07).
+    # Scheduled runs only: skip if this slot's reel is already in history.json (one reel per slot).
+    # Watchdog runs also skip if any other run of this workflow started since the slot began, since
+    # a failed run is already handled by its own 45-minute retry.
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       go: ${{ steps.check.outputs.go }}
+      slot: ${{ steps.check.outputs.slot }}
     steps:
       - uses: actions/checkout@v5
         if: github.event_name == 'schedule'
@@ -68,38 +77,47 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
           SCHED: ${{ github.event.schedule }}
+          SLOT_INPUT: ${{ github.event.inputs.slot }}
         run: |
-          if [ "$EVENT" != "schedule" ]; then echo "go=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$EVENT" != "schedule" ]; then
+            echo "slot=${SLOT_INPUT:-evening}" >> "$GITHUB_OUTPUT"; echo "go=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
           today=$(TZ=Asia/Baghdad date +%F)
-          # GitHub can start a scheduled run hours late. A run that lands after midnight would
-          # post the NEXT day's reel early (16 Nov: the 21:07 check ran at 01:43). So a scheduled
-          # run only posts after that day's slot: 18:00 Baghdad, or 09:00 on Friday.
           hour=$((10#$(TZ=Asia/Baghdad date +%H))); dow=$(TZ=Asia/Baghdad date +%u)
-          slot=18; [ "$dow" = "5" ] && slot=9
-          if [ "$hour" -lt "$slot" ]; then
-            echo "::notice title=Too early for today's reel::scheduled run started at ${hour}:xx Baghdad (late from the day before); today's reel goes out from ${slot}:00"
+          # Which reel this run is for, and its window (Baghdad hours)
+          case "$SCHED" in
+            "7 5 * * 0-4,6"|"37 6 * * 0-4,6") slot=morning; from=8; until=17 ;;
+            *) slot=evening; from=18; until=24; [ "$dow" = "5" ] && from=9 ;;
+          esac
+          echo "slot=$slot" >> "$GITHUB_OUTPUT"
+          # GitHub can start a scheduled run hours late. A run that lands after midnight would
+          # post the NEXT day's reel early (16 Nov: the 21:07 check ran at 01:43), and a morning
+          # run that starts in the evening would post next to the evening reel. So a scheduled
+          # run only posts inside its window: morning 08:00-17:00, evening from 18:00 (09:00 Friday).
+          if [ "$hour" -lt "$from" ] || [ "$hour" -ge "$until" ]; then
+            echo "::notice title=Outside the $slot window::scheduled run started at ${hour}:xx Baghdad; the $slot reel goes out ${from}:00-${until}:00"
             echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          posted=$(python3 -c "import json,sys; h=json.load(open('history.json')); h=h if isinstance(h,list) else h.get('entries',h.get('history',[])); print('yes' if any(isinstance(e,dict) and e.get('date')==sys.argv[1] and e.get('posted') for e in h) else 'no')" "$today" || echo "no")
+          posted=$(python3 -c "import json,sys; h=json.load(open('history.json')); h=h if isinstance(h,list) else h.get('entries',h.get('history',[])); print('yes' if any(isinstance(e,dict) and e.get('date')==sys.argv[1] and e.get('posted') and (e.get('slot') or 'evening')==sys.argv[2] for e in h) else 'no')" "$today" "$slot" || echo "no")
           if [ "$posted" = "yes" ]; then
-            echo "::notice title=Already posted today::today's reel ($today) is already in history.json; nothing to do"
+            echo "::notice title=Already posted::today's $slot reel ($today) is already in history.json; nothing to do"
             echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
           case "$SCHED" in
-            "7 15 * * 0-4,6"|"7 6 * * 5") echo "go=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
+            "7 5 * * 0-4,6"|"7 15 * * 0-4,6"|"7 6 * * 5") echo "go=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
           esac
-          # Watchdog: has anything else run today (Baghdad day)?
-          start=$(date -u -d "TZ=\"Asia/Baghdad\" $today 00:00" +%Y-%m-%dT%H:%M:%SZ)
+          # Watchdog: has anything else run since this slot began (Baghdad time)?
+          start=$(date -u -d "TZ=\"Asia/Baghdad\" $today $(printf %02d "$from"):00" +%Y-%m-%dT%H:%M:%SZ)
           if ! others=$(gh run list --repo "${{ github.repository }}" --workflow daily-reel.yml --created ">=$start" -L 50 \
                           --json databaseId --jq '[.[] | select(.databaseId != ${{ github.run_id }})] | length'); then
             echo "::warning title=Watchdog could not check runs::skipping to avoid a double post"
             echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
           if [ "$others" -gt 0 ]; then
-            echo "::notice title=Watchdog: nothing to do::$others other run(s) today; failures are handled by their own retry"
+            echo "::notice title=Watchdog: nothing to do::$others other run(s) since the $slot slot began; failures are handled by their own retry"
             echo "go=false" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning title=Scheduled run was skipped by GitHub::no run today ($today); the watchdog is making today's reel"
+            echo "::warning title=Scheduled run was skipped by GitHub::no $slot run today ($today); the watchdog is making the $slot reel"
             echo "go=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -150,6 +168,7 @@ jobs:
                              ${{ github.event.inputs.date && format('--date {0}', github.event.inputs.date) || '' }} \
                              ${{ github.event.inputs.background && format('--bg-file {0}', github.event.inputs.background) || '' }} \
                              ${{ github.event.inputs.verses && format('--verses {0}', github.event.inputs.verses) || '' }} \
+                             --slot "${{ needs.guard.outputs.slot || 'evening' }}" \
                              --handle "${{ vars.HANDLE || '@quran_reflections_waqf' }}" 2> err.txt
           code=$?
           set -e
@@ -201,7 +220,7 @@ jobs:
   retry:
     # A scheduled run (or a retry) that failed while generating or posting: wait 45 min, then run again.
     # Up to MAX_RETRIES times (repository variable, default 2). Manual test runs are never retried.
-    needs: reel
+    needs: [guard, reel]
     if: >-
       failure() &&
       (github.event_name == 'schedule' || github.event.inputs.retry_of != '') &&
@@ -221,5 +240,6 @@ jobs:
           next=$(( ${{ github.event.inputs.attempt || '0' }} + 1 ))
           gh workflow run daily-reel.yml --repo "${{ github.repository }}" --ref "${{ github.ref_name }}" \
             -f publish=true -f retry_of="${{ github.run_id }}" -f attempt="$next" \
-            -f platforms="${{ github.event.inputs.platforms || vars.PLATFORMS || 'instagram,facebook' }}"
+            -f platforms="${{ github.event.inputs.platforms || vars.PLATFORMS || 'instagram,facebook' }}" \
+            -f slot="${{ needs.guard.outputs.slot || 'evening' }}"
           echo "::notice title=Retry $next started::the reel is being made again after the failure of run ${{ github.run_id }}"

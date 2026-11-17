@@ -13,13 +13,14 @@ Environment (GitHub secrets / variables):
   MEDIA_REPO        optional public repo "owner/name" used to host the video for Instagram
   MEDIA_TOKEN       token with Contents read/write on MEDIA_REPO
   HISTORY           history file to append to (default history.json)
-  FORCE             "true" to post even if today's reel is already out (normally one post per day);
+  FORCE             "true" to post even if this slot's reel is already out (normally one reel per slot:
+                    morning 08:00 and evening 18:00 Baghdad, Saturday-Thursday; one on Friday);
                     manual runs can also add "force" to the platforms box, e.g. instagram,facebook,force
   RETRY_PREV        set by automatic retries: the published.json of the failed run. Platforms that
                     already have the reel are not posted again (same video, reused), and the
                     history entry for that reel is completed instead of a new one being added.
   STORIES           "true" (default) to also share the same video to the Instagram and Facebook Page
-                    Story (never on Fridays) right after each reel goes out; "false" to post reels only. Manual runs can
+                    Story (never on Fridays or for the morning reel) right after each reel goes out; "false" to post reels only. Manual runs can
                     also add "nostory" to the platforms box.
 
 Facebook: up to 90 s the video goes out as a Reel; longer (the Friday Al-Kahf reels) as a regular
@@ -314,7 +315,9 @@ def already_posted(meta, path):
             history = json.loads(git("show", f"origin/{BRANCH}:{path}"))
         except Exception as e:
             print(f"could not read the latest history: {e}", file=sys.stderr)
-    return [h for h in history if h.get("date") == meta.get("date") and h.get("posted")]
+    slot = meta.get("slot") or "evening"          # entries before the morning slot have no slot
+    return [h for h in history if h.get("date") == meta.get("date") and h.get("posted")
+            and (h.get("slot") or "evening") == slot]
 
 
 def main():
@@ -347,8 +350,8 @@ def main():
         print("::notice title=Retry of a failed run::already out on " + (", ".join(before) or "nothing")
               + "; posting to " + (", ".join(sorted(platforms & {"instagram", "facebook", "tiktok"})) or "nothing (saving history only)"))
     if done and not force:
-        print(f"::notice title=Not posted::today's reel ({done[-1].get('title')}) is already out; "
-              "one post per day (add force to the platforms box to post anyway)")
+        print(f"::notice title=Not posted::this slot's reel ({done[-1].get('title')}) is already out today; "
+              "one reel per slot (add force to the platforms box to post anyway)")
         return 0
 
     results, stories = {}, {}
@@ -356,6 +359,10 @@ def main():
     def share_story(name, fn):
         """Same video to the Story, only after that platform's reel went out. Never fails the run."""
         if not want_story or "permalink" not in results.get(name, {}):
+            return
+        if meta.get("slot") == "morning":
+            stories[name] = {"skipped": "morning reel: stories only with the evening reel"}
+            print(f"::notice title={name.title()} story skipped::stories go with the evening reel only")
             return
         if meta.get("friday"):
             stories[name] = {"skipped": "Friday: no story"}

@@ -675,6 +675,9 @@ HOOKS = {
     "dua": ["🤲 دعاءٌ من القرآن… ردّده معنا | A du'a from the Quran, say it with us",
             "🤲 أجمل الدعاء ما علّمنا الله إياه | The best du'a is the one Allah taught us"],
     "friday": ["🕌 جمعة مباركة | Jumu'ah Mubarak"],
+    "morning": ["🌅 آيةٌ تبدأ بها يومك | A verse to start your day",
+                "🌅 صباحك نورٌ بكلام الله | Begin your morning with the words of Allah",
+                "🌅 قبل أن يبدأ يومك… استمع | Before your day begins, listen"],
 }
 
 THEME_TAG = {1: "#islamicreminders", 2: "#quranrecitation", 3: "#تدبر"}
@@ -773,6 +776,8 @@ def main():
                     help="Fridays: the ten verses of Al-Kahf are kept whole (Instagram only if > 90 s)")
     ap.add_argument("--verses", default="", help="a specific passage as SURAH:START-END, e.g. 73:1-20")
     ap.add_argument("--date", default=None, help="pretend today is YYYY-MM-DD (testing)")
+    ap.add_argument("--slot", default="evening", choices=["morning", "evening"],
+                    help="which of the day's reels this is (morning 08:00 / evening 18:00 Baghdad)")
     ap.add_argument("--handle", default="", help="text shown at the bottom, e.g. @myaccount")
     ap.add_argument("--hashtags", default="",
                     help="override the 5 automatic hashtags (Instagram allows at most 5)")
@@ -836,7 +841,8 @@ def main():
         total, cover = render(verses, title, bgfile, theme, reciter_ar, args.handle, mp4, tmp, animate, video)
         group = p[5] if len(p) > 5 else None
         is_dua = "دعاء" in (p[3] if len(p) > 3 else "")
-        kind = "friday" if friday else "dua" if is_dua else "comfort"
+        kind = ("friday" if friday else "dua" if is_dua
+                else "morning" if args.slot == "morning" and rng.random() < 0.5 else "comfort")
         hook = rng.choice(HOOKS[kind])
         tags = args.hashtags or hashtags_for(verses, group, friday, is_dua)
         with open(os.path.join(args.out, "caption.txt"), "w", encoding="utf-8") as f:
@@ -846,7 +852,8 @@ def main():
         meta = {"date": today.isoformat(), "surah": p[0], "start": start, "end": end,
                 "group": p[5] if len(p) > 5 else None, "friday": friday,
                 "title": title, "reciter": rk, "background": bg_style, "seconds": round(total, 2),
-                "cover_ms": cover, "fixed": bool(args.surah)}
+                "cover_ms": cover, "fixed": bool(args.surah),
+                "slot": "evening" if friday else args.slot}
         if section:
             meta["part_of"] = list(p[:3])
         if TOO_LONG and not args.surah:
