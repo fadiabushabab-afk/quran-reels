@@ -40,6 +40,19 @@ RECITERS = {
     "sudais":     ("Abdurrahmaan_As-Sudais_192kbps", "عبد الرحمن السديس"),
     "shuraym":    ("Saood_ash-Shuraym_128kbps", "سعود الشريم"),
     "dussary":    ("Yasser_Ad-Dussary_128kbps", "ياسر الدوسري"),
+    # added Nov 2026: high-quality (128/192 kbps) Hafs murattal recitations on everyayah.com
+    "juhany":     ("Abdullaah_3awwaad_Al-Juhaynee_128kbps", "عبد الله عواد الجهني"),
+    "basfar":     ("Abdullah_Basfar_192kbps", "عبد الله بصفر"),
+    "shaatree":   ("Abu_Bakr_Ash-Shaatree_128kbps", "أبو بكر الشاطري"),
+    "ajamy":      ("Ahmed_ibn_Ali_al-Ajamy_128kbps_ketaballah.net", "أحمد بن علي العجمي"),
+    "rifai":      ("Hani_Rifai_192kbps", "هاني الرفاعي"),
+    "hudhaify":   ("Hudhaify_128kbps", "علي الحذيفي"),
+    "qahtani":    ("Khaalid_Abdullaah_al-Qahtaanee_192kbps", "خالد القحطاني"),
+    "ayyoub":     ("Muhammad_Ayyoub_128kbps", "محمد أيوب"),
+    "qasim":      ("Muhsin_Al_Qasim_192kbps", "عبد المحسن القاسم"),
+    "qatami":     ("Nasser_Alqatami_128kbps", "ناصر القطامي"),
+    "bukhatir":   ("Salaah_AbdulRahman_Bukhatir_128kbps", "صلاح بو خاطر"),
+    "budair":     ("Salah_Al_Budair_128kbps", "صلاح البدير"),
 }
 
 # number of verses per surah (Hafs)
@@ -219,6 +232,24 @@ def sections_of(surah, start, end):
 TOO_LONG = []          # passages tried in this run that did not fit (saved in history via meta.json)
 
 
+BAD_RECITERS = set()   # reciters whose audio could not be downloaded in this run
+
+
+def try_build(surah, start, end, rk, tmp, max_sec):
+    """build_passage, but a reciter whose audio is missing or unreachable is skipped (and not
+    tried again this run) instead of failing the whole reel. Returns (audio_ok, result)."""
+    if rk in BAD_RECITERS:
+        return False, None
+    try:
+        return True, build_passage(surah, start, end, rk, tmp, max_sec)
+    except RuntimeError as e:
+        if "everyayah.com" not in str(e):
+            raise                                      # text API failures still fail the run
+        BAD_RECITERS.add(rk)
+        print(f"::warning title=Reciter audio missing::{rk}: {e}; using another reciter")
+        return False, None
+
+
 def choose(rng, history, reciter_arg, tmp, max_sec, fixed=None, today=None):
     """Pick passage + reciter. If the recitation is longer than max_sec, try another reciter;
     then the passage's complete ruku' sections (next unused section first); then the next passage.
@@ -231,13 +262,19 @@ def choose(rng, history, reciter_arg, tmp, max_sec, fixed=None, today=None):
         if reciter_arg != "random":
             order = [reciter_arg]
         else:
-            order = keys[:]; rng.shuffle(order)
-            order = order if fixed else order[:2]      # long passages: one retry, then move on
+            order = [k for k in keys if k not in BAD_RECITERS]; rng.shuffle(order)
+        tried = []                                     # reciters whose audio downloaded
         for rk in order:
-            res = build_passage(surah, start, end, rk, tmp, max_sec)
+            if reciter_arg == "random" and not fixed and len(tried) >= 2:
+                break                                  # long passages: one retry, then move on
+            ok, res = try_build(surah, start, end, rk, tmp, max_sec)
+            if not ok:
+                continue
+            tried.append(rk)
             if res:
                 return p, title, rk, res[0], res[1], None
             print(f"  {surah}:{start}-{end} too long with {rk}, trying another", file=sys.stderr)
+        order = tried
         secs = sections_of(surah, start, end)
         if not secs:
             TOO_LONG.append(list(p[:3]))
@@ -247,7 +284,7 @@ def choose(rng, history, reciter_arg, tmp, max_sec, fixed=None, today=None):
         k = (secs.index(prev[-1]) + 1) % len(secs) if prev and prev[-1] in secs else 0
         for a, b in secs[k:] + secs[:k]:               # continue where the last section left off
             for rk in order:
-                res = build_passage(surah, a, b, rk, tmp, max_sec)
+                ok, res = try_build(surah, a, b, rk, tmp, max_sec)
                 if res:
                     return p, title, rk, res[0], res[1], (a, b)
                 print(f"  section {surah}:{a}-{b} too long with {rk}", file=sys.stderr)

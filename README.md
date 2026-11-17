@@ -17,7 +17,7 @@ Makes a daily 1080x1920 Quran video.
   surah and reciter → «اكتب آمين» / share as sadaqah jariyah → "Follow @… for daily verses" →
   5 hashtags (Instagram's limit): `#quran #القرآن_الكريم #surah<name> #<theme> #explore`.
   Kept under 2,100 characters (the English is dropped first if a passage is long).
-- **Reciter:** random each day from 8 reciters (if a passage is too long with one reciter,
+- **Reciter:** random each day from 20 reciters, all 128–192 kbps; a reciter whose audio is missing is skipped (if a passage is too long with one reciter,
   another is tried).
 - **Cover:** the Instagram cover is a frame from the first verse (not the basmala), and the very
   first frame already shows the text (Facebook uses it as the cover), so covers
