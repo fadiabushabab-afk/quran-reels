@@ -370,21 +370,25 @@ def is_video(path):
     return path.lower().endswith(VID_EXT)
 
 
-def pick_photo(photos, history, today=None, days=10):
-    """Least recently used background (image or video clip) first, so every one gets a turn
-    before any repeats; one used in the last `days` days is never picked while any other is available."""
-    last, recent = {}, set()
+def pick_photo(photos, history, today=None):
+    """Full-cycle rotation: no background (image or video clip) is used a second time until every
+    background in the library has been used once; then the cycle starts again in the same
+    least-recently-used order. Backgrounds added mid-cycle join the current cycle; removed ones
+    are ignored."""
+    names = {os.path.basename(p) for p in photos}
+    last, cycle = {}, set()
     for i, h in enumerate(history):
         bg = h.get("background", "")
-        if bg.startswith(("photo: ", "video: ")):
-            name = bg[7:]
-            last[name] = i
-            try:
-                if today and (today - datetime.date.fromisoformat(h["date"])).days < days:
-                    recent.add(name)
-            except (KeyError, ValueError):
-                pass
-    pool = [p for p in photos if os.path.basename(p) not in recent] or photos
+        if not bg.startswith(("photo: ", "video: ")):
+            continue
+        name = bg[7:]
+        last[name] = i
+        if name not in names:
+            continue
+        if not (names - cycle):                     # every background used: a new cycle starts
+            cycle = set()
+        cycle.add(name)
+    pool = [p for p in photos if os.path.basename(p) not in cycle] or photos
     return min(pool, key=lambda p: (last.get(os.path.basename(p), -1), os.path.basename(p)))
 
 

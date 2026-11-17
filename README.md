@@ -43,7 +43,7 @@ Makes a daily 1080x1920 Quran video.
   reading needs the "Instagram Public Content Access" feature on the Meta app; without it only our
   own results are used. TikTok has no official API for this, so it is not included.
 - **Background:** an image from `backgrounds/` (the user's library, synced from their
-  "Holy Quran" folder). The least recently used image is chosen, so all get a turn, and no image is reused within 10 days. Each image is
+  "Holy Quran" folder). Backgrounds rotate in full cycles: none is reused until every image and clip in the library has been used once, then the cycle starts again (least recently used first). Each image is
   animated by `motion.py`: soft warm light rays from above, dust floating almost still in the light,
   breathing light and a very slow camera drift, looping seamlessly every 30 s. Text is white on dark images and dark brown on light ones, with a soft glow
   behind the verses. If the folder is empty, a drawn Islamic style from `bgstyles.py` is used.

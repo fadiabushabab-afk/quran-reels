@@ -1,7 +1,7 @@
 """
 Which verses are doing well: our own reels' results + what is popular on Instagram hashtags.
 Writes trends.json, which generate.py reads to put "trending" passages first (within the usual
-group rotation, freshness and 10-day background rules; nothing else changes).
+group rotation, freshness and full-cycle background rotation; nothing else changes).
 
   1. Own performance: every reel on our Instagram account, matched to history.json by its link,
      with views / reach / saves / shares / likes / comments (Instagram insights).
