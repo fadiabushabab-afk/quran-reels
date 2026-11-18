@@ -469,5 +469,40 @@
    "instagram": "https://www.instagram.com/stories/quran_reflections_waqf/4032571862155845412",
    "facebook": "https://www.facebook.com/stories/1332221749985686"
   }
+ },
+ {
+  "date": "2026-11-18",
+  "surah": 94,
+  "start": 1,
+  "end": 8,
+  "group": 2,
+  "friday": false,
+  "title": "سورة الشرح",
+  "reciter": "qahtani",
+  "background": "photo: 645a6d5d24884906718a48a29ed55f71.jpg",
+  "seconds": 30.54,
+  "cover_ms": 4927,
+  "slot": "morning",
+  "too_long": [
+   [
+    109,
+    1,
+    6
+   ],
+   [
+    55,
+    1,
+    78
+   ],
+   [
+    56,
+    1,
+    96
+   ]
+  ],
+  "posted": {
+   "instagram": "https://www.instagram.com/reel/Df4JADoCYA0/",
+   "facebook": "https://www.facebook.com/reel/2640484406434046"
+  }
  }
 ]
