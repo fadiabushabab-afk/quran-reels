@@ -504,5 +504,39 @@
    "instagram": "https://www.instagram.com/reel/Df4JADoCYA0/",
    "facebook": "https://www.facebook.com/reel/2640484406434046"
   }
+ },
+ {
+  "date": "2026-11-18",
+  "surah": 23,
+  "start": 118,
+  "end": 118,
+  "group": 3,
+  "friday": false,
+  "title": "دعاء المغفرة والرحمة",
+  "reciter": "shuraym",
+  "background": "photo: 662b3fb6beabc3a28dfaf905c18bd3cb.jpg",
+  "seconds": 7.08,
+  "cover_ms": 1500,
+  "slot": "evening",
+  "too_long": [
+   [
+    2,
+    214,
+    214
+   ],
+   [
+    2,
+    282,
+    282
+   ]
+  ],
+  "posted": {
+   "instagram": "https://www.instagram.com/reel/Df4y10MmdwG/",
+   "facebook": "https://www.facebook.com/reel/1731563478386198"
+  },
+  "stories": {
+   "instagram": "https://www.instagram.com/stories/quran_reflections_waqf/4033197454954612177",
+   "facebook": "https://www.facebook.com/stories/1332221749985686"
+  }
  }
 ]
