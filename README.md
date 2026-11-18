@@ -86,3 +86,16 @@ when the repository variable `PLATFORMS` includes `tiktok` and these are set:
 
 Until TikTok audits the developer app, every post is private (visible only to the account) and the
 account itself must be set to private. After the audit, posts go out public.
+
+## On-time posting (external trigger)
+
+Since 16 Nov 2026 GitHub has been starting the scheduled runs 7–9 hours late (or not at all), so the guard skips them and nothing is posted. The fix is an outside scheduler that starts the workflow on time; GitHub's own crons stay as a backup.
+
+1. Create a fine-grained GitHub token: repository access **quran-reels only**, permission **Actions: Read and write**.
+2. On cron-job.org (free), add one job per reel, time zone **Asia/Baghdad**:
+   - URL: `https://api.github.com/repos/fadiabushabab-afk/quran-reels/actions/workflows/daily-reel.yml/dispatches`, method **POST**
+   - Headers: `Authorization: Bearer <token>`, `Accept: application/vnd.github+json`
+   - Body, morning (Sat–Thu 08:07): `{"ref":"main","inputs":{"auto":"true","slot":"morning"}}`
+   - Body, evening (Sat–Thu 18:07, Friday 09:07): `{"ref":"main","inputs":{"auto":"true","slot":"evening"}}`
+
+A run with `auto=true` is treated like a scheduled run: it only posts inside its window, never twice per slot, and is retried after a failure.
