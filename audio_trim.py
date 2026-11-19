@@ -118,7 +118,7 @@ def speech_end(path, drop_db=8.0, grace=0.13):
             # Keep every such frame that follows (a few short dips allowed).
             j, miss, last = t, 0, t
             while j < stop and miss <= 4:
-                nasal = sm[j] > level - 38 and harm[j] >= 0.5 and tilt[j] > 8 and sib[j] < 2
+                nasal = sm[j] > level - 32 and harm[j] >= 0.5 and tilt[j] > 8 and sib[j] < 2
                 if nasal:
                     last, miss = j + 1, 0
                 else:
