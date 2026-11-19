@@ -556,5 +556,40 @@
    "instagram": "https://www.instagram.com/reel/Df6TK-3gkvx/",
    "facebook": "https://www.facebook.com/reel/1213030498054113"
   }
+ },
+ {
+  "date": "2026-11-19",
+  "surah": 111,
+  "start": 1,
+  "end": 5,
+  "group": 2,
+  "friday": false,
+  "title": "سورة المسد",
+  "reciter": "rifai",
+  "background": "photo: 7845b62ee13ff45b7a6fc422ad31f6df.jpg",
+  "seconds": 28.48,
+  "cover_ms": 5490,
+  "action": "احفظ هذه السورة أو راجِعها اليوم، واقرأ بها في صلاتك",
+  "slot": "evening",
+  "too_long": [
+   [
+    93,
+    1,
+    11
+   ],
+   [
+    97,
+    1,
+    5
+   ]
+  ],
+  "posted": {
+   "instagram": "https://www.instagram.com/reel/Df7YKEPCci5/",
+   "facebook": "https://www.facebook.com/reel/2437492647065895"
+  },
+  "stories": {
+   "instagram": "https://www.instagram.com/stories/quran_reflections_waqf/4033924540312496105",
+   "facebook": "https://www.facebook.com/stories/1332221749985686"
+  }
  }
 ]
