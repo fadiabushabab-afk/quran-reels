@@ -24,7 +24,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from passages import PASSAGES, FRIDAY, COMFORT
 from zoneinfo import ZoneInfo
-import audio_trim, bgstyles, motion
+import actions, audio_trim, bgstyles, motion
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 W, H = 1080, 1920
@@ -751,7 +751,7 @@ def tafsir_excerpt(verses, limit=280):
 
 
 def caption(verses, title, reciter_ar, hashtags, virtue=None, grade=None,
-            hook="", handle=HANDLE):
+            hook="", handle=HANDLE, action=None):
     real = [v for v in verses if v["marker"]]
     v0, v1 = real[0], real[-1]
     rng_txt = f"{v0['ayah']}" if v0["ayah"] == v1["ayah"] else f"{v0['ayah']}-{v1['ayah']}"
@@ -772,7 +772,8 @@ def caption(verses, title, reciter_ar, hashtags, virtue=None, grade=None,
             text += f"\n🌍 {en}\n— Saheeh International\n"
         text += (f"\n📖 {v0['surah_name_ar']} ({v0['surah_name_en']}) — الآيات {rng_txt}\n"
                  f"🎙️ بصوت القارئ {reciter_ar}\n\n"
-                 f"🤲 اكتب «آمين» في التعليقات، وشاركها لتكون صدقة جارية لك\n"
+                 + (f"✅ عمل اليوم: {action[0]}\nToday: {action[1]}\n\n" if action else "")
+                 + f"🤲 اكتب «آمين» في التعليقات، وشاركها لتكون صدقة جارية لك\n"
                  f"Comment \"Ameen\" and share it as sadaqah jariyah 🤍\n"
                  f"➕ Follow {handle} for daily verses\n\n{hashtags}\n")
         return text
@@ -872,13 +873,14 @@ def main():
         hook = rng.choice(HOOKS[kind])
         tags = args.hashtags or hashtags_for(verses, group, friday, is_dua)
         with open(os.path.join(args.out, "caption.txt"), "w", encoding="utf-8") as f:
+            act = actions.action_for(p, friday)
             f.write(caption(verses, title, reciter_ar, tags, virtue, grade, hook=hook,
-                            handle=args.handle or HANDLE))
+                            handle=args.handle or HANDLE, action=act))
         start, end = section or (p[1], p[2])
         meta = {"date": today.isoformat(), "surah": p[0], "start": start, "end": end,
                 "group": p[5] if len(p) > 5 else None, "friday": friday,
                 "title": title, "reciter": rk, "background": bg_style, "seconds": round(total, 2),
-                "cover_ms": cover, "fixed": bool(args.surah),
+                "cover_ms": cover, "fixed": bool(args.surah), "action": act[0],
                 "slot": "evening" if friday else args.slot}
         if section:
             meta["part_of"] = list(p[:3])
