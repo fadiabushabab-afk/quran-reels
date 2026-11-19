@@ -75,7 +75,7 @@ def speech_end(path, drop_db=8.0, grace=0.13):
     Returns None when the analysis finds nothing sensible (the file is then left untouched)."""
     x = _decode(path)
     dur = len(x) / SR
-    db, harm, _, sib = frame_features(x)
+    db, harm, tilt, sib = frame_features(x)
     n = len(db)
     if n < 40:
         return None
@@ -112,6 +112,19 @@ def speech_end(path, drop_db=8.0, grace=0.13):
                 j += 1
             if j - miss > t:
                 t = j - miss
+            # a verse can also end on a held nasal (ن / م after a long vowel, e.g. "الصابرين",
+            # "العالمين"): at the stop it is quieter than the vowel, but it is still the voice -
+            # pitched, with its energy low in the spectrum - while a breath is unpitched hiss.
+            # Keep every such frame that follows (a few short dips allowed).
+            j, miss, last = t, 0, t
+            while j < stop and miss <= 4:
+                nasal = sm[j] > level - 38 and harm[j] >= 0.5 and tilt[j] > 8 and sib[j] < 2
+                if nasal:
+                    last, miss = j + 1, 0
+                else:
+                    miss += 1
+                j += 1
+            t = max(t, last)
             end = min(dur, (t * HOP + 320) / SR + grace)   # t = start of the frame after the voice
             return end if end >= dur * 0.5 else None
     return dur if stop == n else None                  # voice runs to the very end: nothing to cut
@@ -119,6 +132,17 @@ def speech_end(path, drop_db=8.0, grace=0.13):
 
 def duration_of(path):
     return len(_decode(path)) / SR
+
+
+def profile(src, last_sec=2.0):
+    """Diagnostics: the last seconds of a file as 50 ms rows (time, dB, harmonicity, tilt, sibilance)."""
+    x = _decode(src)
+    db, harm, tilt, sib = frame_features(x)
+    n = len(db)
+    rows = []
+    for i in range(max(0, n - int(last_sec * 100)), n, 5):
+        rows.append(f"{i * HOP / SR:6.2f} {db[i]:6.1f} {harm[i]:.2f} {tilt[i]:5.1f} {sib[i]:5.1f}")
+    return "\n".join(rows)
 
 
 def trim_end(src, dst, fade=0.10):

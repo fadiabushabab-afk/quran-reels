@@ -585,6 +585,8 @@ def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=F
     # at the end of a reel that breath is heard on its own, so finish exactly on the last word
     last_v = verses[-1]
     clean = os.path.join(tmp, "last_verse_clean.mp3")
+    if os.environ.get("TRIM_DEBUG"):
+        print("TRIM PROFILE (t dB harm tilt sib)\n" + audio_trim.profile(last_v["audio"], 3.0))
     try:
         cut = audio_trim.trim_end(last_v["audio"], clean)
     except Exception as e:                      # never lose a reel over this: keep the original

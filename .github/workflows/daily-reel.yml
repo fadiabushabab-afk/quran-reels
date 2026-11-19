@@ -170,6 +170,8 @@ jobs:
       - name: Generate reel
         id: gen
         if: steps.prev.outputs.published == ''
+        env:
+          TRIM_DEBUG: "1"     # TEMPORARY (test branch only)
         run: |
           python -c "from PIL import features; print('raqm:', features.check('raqm'))"
           set +e
