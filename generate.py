@@ -594,12 +594,23 @@ def render(verses, title, bg, theme, reciter_ar, handle, out_mp4, tmp, animate=F
         print(f"Last verse trimmed {last_v['dur']:.2f}s -> {cut:.2f}s (reciter's breath removed)")
         last_v.update(audio=clean, dur=cut)
 
-    lst = os.path.join(tmp, "list.txt")
-    with open(lst, "w") as f:
-        for v in verses:
-            f.write(f"file '{v['audio']}'\n")
+    # join the verse files without the dead gap left where a reverberant reciter's echo is cut
+    # off at the end of each file; the on-screen text follows the joined timing
+    joined = os.path.join(tmp, "joined.wav")
+    try:
+        spans = audio_trim.join_verses([v["audio"] for v in verses], joined)
+        for v, d in zip(verses, spans):
+            v["dur"] = d
+        src = ["-i", joined]
+    except Exception as e:                      # never lose a reel over this: plain concat
+        print(f"::warning title=Smooth verse join skipped::{e}")
+        lst = os.path.join(tmp, "list.txt")
+        with open(lst, "w") as f:
+            for v in verses:
+                f.write(f"file '{v['audio']}'\n")
+        src = ["-f", "concat", "-safe", "0", "-i", lst]
     audio = os.path.join(tmp, "audio.m4a")
-    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", lst,
+    subprocess.run(["ffmpeg", "-y", "-v", "error", *src,
                     "-af", "apad=pad_dur=1.2", "-c:a", "aac", "-b:a", "160k", "-ar", "48000", audio],
                    check=True)
     total = duration(audio)
