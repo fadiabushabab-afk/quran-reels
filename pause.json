@@ -1,6 +1,7 @@
 {
- "reason": "Instagram @quran_reflections_waqf suspended 20 Nov 2026, appeal under review. Delete this file (or empty 'paused') to resume everything.",
- "paused": ["instagram"],
+ "reason": "20 Nov 2026: Instagram @quran_reflections_waqf suspended (appeal under review), TikTok app still in review. All automatic posting paused; each reel is delivered as a GitHub Release (video + caption + hashtags + cover) to post by hand. Delete this file to resume automatic posting.",
+ "manual": true,
+ "paused": ["instagram", "facebook", "tiktok"],
  "facebook_evening_only": true,
  "stories": false
 }

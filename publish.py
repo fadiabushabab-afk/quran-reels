@@ -333,7 +333,69 @@ def load_pause(path="pause.json"):
         return {}
 
 
+def hashtags_of(caption):
+    return " ".join(w for w in caption.split() if w.startswith("#") and len(w) > 1)
+
+
+def deliver_manual(meta, caption, hist_path, done, force):
+    """Manual mode (pause.json "manual": true): post nowhere. Put the reel, its caption and hashtags in
+    a GitHub Release so it can be downloaded on the phone and posted by hand, and record it in
+    history.json so the passage/background rotation moves on and the slot counts as done."""
+    if done and not force:
+        print(f"::notice title=Already delivered::this slot's reel ({done[-1].get('title')}) is already out today")
+        return 0
+    if meta.get("fixed"):
+        print("::notice title=Test run::not delivered (fixed passage)")
+        return 0
+    video = os.path.join(OUT, "reel.mp4")
+    tags = hashtags_of(caption)
+    with open(os.path.join(OUT, "hashtags.txt"), "w", encoding="utf-8") as f:
+        f.write(tags + "\n")
+    tiktok_caption = caption if len(caption) <= 2200 else caption[:2100].rsplit("\n", 1)[0] + "\n\n" + tags
+    with open(os.path.join(OUT, "caption_tiktok.txt"), "w", encoding="utf-8") as f:
+        f.write(tiktok_caption + "\n")
+    slot = meta.get("slot") or "evening"
+    tag = f"reel-{meta['date']}-{slot}-{os.environ.get('GITHUB_RUN_ID', int(time.time()))}"
+    cover_s = round(meta.get("cover_ms", 2500) / 1000, 1)
+    title = f"{meta['date']} {'🌅 morning' if slot == 'morning' else '🌙 evening'} — {meta.get('title') or ''}"
+    notes = (f"**Ready to post by hand** — {meta.get('seconds', 0):.0f} s video, cover frame at {cover_s} s.\n\n"
+             "1. Download **reel.mp4** below.\n2. Copy the caption (below, or caption.txt) and paste it.\n"
+             "   TikTok: use caption_tiktok.txt. Hashtags alone: hashtags.txt.\n\n"
+             f"---\n\n```\n{caption}\n```\n")
+    files = [video] + [os.path.join(OUT, n) for n in ("caption.txt", "caption_tiktok.txt", "hashtags.txt")]
+    cover = os.path.join(OUT, "cover.jpg")
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-ss", str(cover_s), "-i", video,
+                    "-frames:v", "1", "-q:v", "2", cover], capture_output=True)
+    if os.path.exists(cover):
+        files.append(cover)
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    if not repo:
+        print(f"(local run) would create release {tag} with {files}")
+        return 0
+    r = subprocess.run(["gh", "release", "create", tag, *files, "--repo", repo,
+                        "--title", title, "--notes", notes, "--latest"], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("::error title=Could not create the release::" + (r.stderr or r.stdout)[-800:].replace("\n", " "))
+        return 1
+    url = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else f"https://github.com/{repo}/releases/tag/{tag}"
+    print("::notice title=Reel ready to post by hand::" + url)
+    results = {"manual": {"permalink": url}}
+    with open(os.path.join(OUT, "published.json"), "w", encoding="utf-8") as f:
+        json.dump({**results, "stories": {}}, f, ensure_ascii=False, indent=2)
+    return 0 if record(meta, results, hist_path) else 1
+
+
 def main():
+    pause = load_pause()
+    if pause.get("manual"):
+        with open(os.path.join(OUT, "caption.txt"), encoding="utf-8") as f:
+            caption = f.read().strip()
+        with open(os.path.join(OUT, "meta.json"), encoding="utf-8") as f:
+            meta = json.load(f)
+        hist_path = os.environ.get("HISTORY", "history.json")
+        force = bool(os.environ.get("RETRY_PREV")) or os.environ.get("FORCE", "").lower() == "true" \
+            or "force" in os.environ.get("PLATFORMS", "")
+        return deliver_manual(meta, caption, hist_path, already_posted(meta, hist_path), force)
     token = os.environ.get("META_PAGE_TOKEN")
     ig_id = os.environ.get("IG_USER_ID")
     if not token or not ig_id:
@@ -352,7 +414,6 @@ def main():
     platforms = {x.strip().lower() for x in os.environ.get("PLATFORMS", "instagram,facebook").split(",")}
     force = os.environ.get("FORCE", "").lower() == "true" or "force" in platforms
     want_story = os.environ.get("STORIES", "true").lower() != "false" and "nostory" not in platforms
-    pause = load_pause()
     if pause.get("paused"):
         dropped = platforms & set(pause["paused"])
         platforms -= dropped

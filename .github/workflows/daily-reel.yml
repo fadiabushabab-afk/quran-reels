@@ -213,6 +213,7 @@ jobs:
           TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
           TIKTOK_PRIVACY: ${{ vars.TIKTOK_PRIVACY }}
           GH_ADMIN_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}   # saves TikTok's rotated refresh token
+          GH_TOKEN: ${{ github.token }}                   # manual mode (pause.json): creates the release
         run: python publish.py out     # also commits history.json when something was posted
 
       - name: Save what was posted (read by an automatic retry)

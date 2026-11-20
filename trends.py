@@ -175,6 +175,12 @@ def main():
     if not token or not ig_id:
         print("::warning title=Trends skipped::META_PAGE_TOKEN / IG_USER_ID secrets are not set")
         return 0
+    try:
+        if "instagram" in json.load(open("pause.json", encoding="utf-8")).get("paused", []):
+            print("::notice title=Trends skipped::Instagram is paused (pause.json); last trends.json kept")
+            return 0
+    except FileNotFoundError:
+        pass
     token = page_token_from(token, os.environ.get("FB_PAGE_ID"))
     with open("history.json", encoding="utf-8") as f:
         history = json.load(f)
