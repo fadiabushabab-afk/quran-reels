@@ -320,6 +320,19 @@ def already_posted(meta, path):
             and (h.get("slot") or "evening") == slot]
 
 
+def load_pause(path="pause.json"):
+    """Temporary platform pause, edited by hand in the repo. Missing file = nothing paused.
+    {"paused": ["instagram"], "facebook_evening_only": true, "stories": false, "reason": "..."}"""
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+    except Exception as e:
+        print(f"::warning title=pause.json unreadable::{e}; nothing paused")
+        return {}
+
+
 def main():
     token = os.environ.get("META_PAGE_TOKEN")
     ig_id = os.environ.get("IG_USER_ID")
@@ -339,6 +352,18 @@ def main():
     platforms = {x.strip().lower() for x in os.environ.get("PLATFORMS", "instagram,facebook").split(",")}
     force = os.environ.get("FORCE", "").lower() == "true" or "force" in platforms
     want_story = os.environ.get("STORIES", "true").lower() != "false" and "nostory" not in platforms
+    pause = load_pause()
+    if pause.get("paused"):
+        dropped = platforms & set(pause["paused"])
+        platforms -= dropped
+        if dropped:
+            print("::notice title=Paused platforms skipped::" + ", ".join(sorted(dropped))
+                  + " (see pause.json: " + pause.get("reason", "") + ")")
+    if pause.get("facebook_evening_only") and meta.get("slot") == "morning" and "facebook" in platforms:
+        platforms.discard("facebook")
+        print("::notice title=Facebook skipped::morning reel; Facebook gets the evening reel only (pause.json)")
+    if pause.get("stories") is False:
+        want_story = False
     before, stories_before = {}, {}
     if os.environ.get("RETRY_PREV"):
         with open(os.environ["RETRY_PREV"], encoding="utf-8") as f:
