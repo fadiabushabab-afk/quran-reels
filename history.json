@@ -591,5 +591,26 @@
    "instagram": "https://www.instagram.com/stories/quran_reflections_waqf/4033924540312496105",
    "facebook": "https://www.facebook.com/stories/1332221749985686"
   }
+ },
+ {
+  "date": "2026-11-20",
+  "surah": 18,
+  "start": 1,
+  "end": 10,
+  "group": 1,
+  "friday": true,
+  "title": "أول عشر آيات من سورة الكهف",
+  "reciter": "juhany",
+  "background": "photo: 7f04b4135e67d1b138d441662d4cffe6.jpg",
+  "seconds": 85.03,
+  "cover_ms": 4746,
+  "action": "أكثِر من الصلاة على النبي ﷺ في يوم الجمعة",
+  "slot": "evening",
+  "posted": {
+   "facebook": "https://www.facebook.com/reel/1152082950624010"
+  },
+  "failed": [
+   "instagram"
+  ]
  }
 ]
