@@ -612,5 +612,45 @@
   "failed": [
    "instagram"
   ]
+ },
+ {
+  "date": "2026-11-21",
+  "surah": 93,
+  "start": 3,
+  "end": 5,
+  "group": 3,
+  "friday": false,
+  "title": "«ولسوف يعطيك ربك فترضى»",
+  "reciter": "abdulbasit",
+  "background": "photo: 85d522b8d4c8b5d265bde5519ef351ec.jpg",
+  "seconds": 17.59,
+  "cover_ms": 1500,
+  "action": "إن أهمّك شيء اليوم فتذكّر هذه الآيات، وقل: إنا لله وإنا إليه راجعون",
+  "slot": "morning",
+  "too_long": [
+   [
+    2,
+    2,
+    5
+   ],
+   [
+    55,
+    1,
+    13
+   ],
+   [
+    31,
+    12,
+    19
+   ],
+   [
+    9,
+    128,
+    129
+   ]
+  ],
+  "posted": {
+   "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-21-morning-44869340145"
+  }
  }
 ]
