@@ -652,5 +652,30 @@
   "posted": {
    "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-21-morning-44869340145"
   }
+ },
+ {
+  "date": "2026-11-21",
+  "surah": 2,
+  "start": 245,
+  "end": 245,
+  "group": 1,
+  "friday": false,
+  "title": "القرض الحسن",
+  "reciter": "minshawy",
+  "background": "photo: 88bd897eedeb343f243dd40e613bcf8d.jpg",
+  "seconds": 21.27,
+  "cover_ms": 1500,
+  "action": "تصدّق اليوم ولو بشيء يسير، وأخفِها إن استطعت",
+  "slot": "evening",
+  "too_long": [
+   [
+    2,
+    261,
+    264
+   ]
+  ],
+  "posted": {
+   "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-21-evening-44917456616"
+  }
  }
 ]
