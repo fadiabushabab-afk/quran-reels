@@ -695,5 +695,30 @@
   "posted": {
    "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-22-morning-44987990433"
   }
+ },
+ {
+  "date": "2026-11-22",
+  "surah": 94,
+  "start": 5,
+  "end": 6,
+  "group": 3,
+  "friday": false,
+  "title": "«فإن مع العسر يسرًا»",
+  "reciter": "ajamy",
+  "background": "photo: 9135f32f4225c18e785618616f64dcab.jpg",
+  "seconds": 8.65,
+  "cover_ms": 1500,
+  "action": "إن أهمّك شيء اليوم فتذكّر هذه الآيات، وقل: إنا لله وإنا إليه راجعون",
+  "slot": "evening",
+  "too_long": [
+   [
+    3,
+    139,
+    142
+   ]
+  ],
+  "posted": {
+   "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-22-evening-45036508578"
+  }
  }
 ]
