@@ -258,13 +258,25 @@ TOO_LONG = []          # passages tried in this run that did not fit (saved in h
 BAD_RECITERS = set()   # reciters whose audio could not be downloaded in this run
 
 
-def try_build(surah, start, end, rk, tmp, max_sec):
+def try_build(surah, start, end, rk, tmp, max_sec, strict=True):
     """build_passage, but a reciter whose audio is missing or unreachable is skipped (and not
-    tried again this run) instead of failing the whole reel. Returns (audio_ok, result)."""
+    tried again this run) instead of failing the whole reel. Returns (audio_ok, result).
+    With strict, a reciter whose file for any verse of this passage is cut short at the
+    source (the last letter chopped off) is skipped for this passage only."""
     if rk in BAD_RECITERS:
         return False, None
     try:
-        return True, build_passage(surah, start, end, rk, tmp, max_sec)
+        res = build_passage(surah, start, end, rk, tmp, max_sec)
+        if res:
+            cut = [f"{v['surah']}:{v['ayah']}" if v["marker"] else "basmala"
+                   for v in res[0] if audio_trim.ends_mid_sound(v["audio"])]
+            if cut:
+                msg = f"{rk}: audio file cut short at the source for {', '.join(cut)}"
+                if strict:
+                    print(f"::notice title=Reciter skipped for this passage::{msg}; using another reciter")
+                    return False, None
+                print(f"::warning title=Verse audio cut short::{msg} (reciter was fixed, kept)")
+        return True, res
     except RuntimeError as e:
         if "everyayah.com" not in str(e):
             raise                                      # text API failures still fail the run
@@ -290,7 +302,7 @@ def choose(rng, history, reciter_arg, tmp, max_sec, fixed=None, today=None):
         for rk in order:
             if reciter_arg == "random" and not fixed and len(tried) >= 2:
                 break                                  # long passages: one retry, then move on
-            ok, res = try_build(surah, start, end, rk, tmp, max_sec)
+            ok, res = try_build(surah, start, end, rk, tmp, max_sec, strict=reciter_arg == "random")
             if not ok:
                 continue
             tried.append(rk)
@@ -307,7 +319,7 @@ def choose(rng, history, reciter_arg, tmp, max_sec, fixed=None, today=None):
         k = (secs.index(prev[-1]) + 1) % len(secs) if prev and prev[-1] in secs else 0
         for a, b in secs[k:] + secs[:k]:               # continue where the last section left off
             for rk in order:
-                ok, res = try_build(surah, a, b, rk, tmp, max_sec)
+                ok, res = try_build(surah, a, b, rk, tmp, max_sec, strict=reciter_arg == "random")
                 if res:
                     return p, title, rk, res[0], res[1], (a, b)
                 print(f"  section {surah}:{a}-{b} too long with {rk}", file=sys.stderr)

@@ -130,6 +130,18 @@ def speech_end(path, drop_db=8.0, grace=0.13):
     return dur if stop == n else None                  # voice runs to the very end: nothing to cut
 
 
+def ends_mid_sound(path, limit_db=-8.0):
+    """True when the file stops while the reciter is still sounding: the last ~60 ms are within
+    `limit_db` of the recitation's loudness.  Some reciters' everyayah files are cut a little
+    early, so the last letter of the verse is chopped off (e.g. Maher 106:1 stops inside the
+    final ش of قريش, measured -1.9 dB).  A verse that ends normally fades out first: reciters
+    with clean files measured -25 dB or quieter on every verse tested."""
+    db = frame_features(_decode(path))[0]
+    if len(db) < 10:
+        return False
+    return float(db[-3:].mean() - np.percentile(db, 90)) > limit_db
+
+
 def duration_of(path):
     return len(_decode(path)) / SR
 
