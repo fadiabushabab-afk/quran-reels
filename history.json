@@ -745,5 +745,23 @@
   "posted": {
    "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-23-morning-45115770933"
   }
+ },
+ {
+  "date": "2026-11-23",
+  "surah": 106,
+  "start": 1,
+  "end": 4,
+  "group": 2,
+  "friday": false,
+  "title": "سورة قريش",
+  "reciter": "maher",
+  "background": "photo: 9ab3a5a21ecf37fcc3fa6907f4145363.jpg",
+  "seconds": 21.45,
+  "cover_ms": 4217,
+  "action": "احفظ هذه السورة أو راجِعها اليوم، واقرأ بها في صلاتك",
+  "slot": "evening",
+  "posted": {
+   "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-23-evening-45201579582"
+  }
  }
 ]
