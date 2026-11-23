@@ -720,5 +720,30 @@
   "posted": {
    "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-22-evening-45036508578"
   }
+ },
+ {
+  "date": "2026-11-23",
+  "surah": 48,
+  "start": 18,
+  "end": 18,
+  "group": 1,
+  "friday": false,
+  "title": "بيعة الرضوان والسكينة",
+  "reciter": "qahtani",
+  "background": "photo: 95478ba93b40f1b1cd3bf753fb231538.jpg",
+  "seconds": 28.41,
+  "cover_ms": 1500,
+  "action": "حافظ اليوم على أذكار الصباح والمساء",
+  "slot": "morning",
+  "too_long": [
+   [
+    2,
+    248,
+    248
+   ]
+  ],
+  "posted": {
+   "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-23-morning-45115770933"
+  }
  }
 ]
