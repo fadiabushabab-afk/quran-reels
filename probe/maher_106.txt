@@ -1,0 +1,6 @@
+001001 dur=3.502 bounds=0.020,3.500 speech_end=3.5025
+106001 dur=1.489 bounds=0.020,1.480 speech_end=1.489
+106002 dur=5.016 bounds=0.020,5.010 speech_end=5.0155
+106003 dur=3.082 bounds=0.020,3.070 speech_end=3.0824375
+106004 dur=7.236 bounds=0.020,7.220 speech_end=7.2359375
+spans 3.483 1.469 4.996 3.062 7.236
