@@ -781,5 +781,23 @@
   "posted": {
    "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-24-morning-45331020483"
   }
+ },
+ {
+  "date": "2026-11-24",
+  "surah": 23,
+  "start": 97,
+  "end": 98,
+  "group": 1,
+  "friday": false,
+  "title": "الاستعاذة من الهمزات",
+  "reciter": "ajamy",
+  "background": "video: WhatsApp_Video_2026-11-10_at_9.02.43_AM_1.mp4",
+  "seconds": 11.98,
+  "cover_ms": 1500,
+  "action": "حافظ اليوم على أذكار الصباح والمساء",
+  "slot": "evening",
+  "posted": {
+   "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-24-evening-45421754076"
+  }
  }
 ]
