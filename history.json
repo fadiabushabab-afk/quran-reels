@@ -959,5 +959,30 @@
   "posted": {
    "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-25-morning-45551333890"
   }
+ },
+ {
+  "date": "2026-11-25",
+  "surah": 3,
+  "start": 16,
+  "end": 17,
+  "group": 3,
+  "friday": false,
+  "title": "دعاء الرجاء والمغفرة",
+  "reciter": "qasim",
+  "background": "photo: a34ff197568f7cd19d1bd48c76172c20.jpg",
+  "seconds": 24.33,
+  "cover_ms": 1500,
+  "action": "خصّص دقائق اليوم للاستغفار بقلبٍ حاضر",
+  "slot": "evening",
+  "too_long": [
+   [
+    78,
+    31,
+    36
+   ]
+  ],
+  "posted": {
+   "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-25-evening-45641521028"
+  }
  }
 ]
