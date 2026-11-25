@@ -41,7 +41,6 @@ RECITERS = {
     "shuraym":    ("Saood_ash-Shuraym_128kbps", "سعود الشريم"),
     "dussary":    ("Yasser_Ad-Dussary_128kbps", "ياسر الدوسري"),
     # added Nov 2026: high-quality (128/192 kbps) Hafs murattal recitations on everyayah.com
-    "juhany":     ("Abdullaah_3awwaad_Al-Juhaynee_128kbps", "عبد الله عواد الجهني"),
     "basfar":     ("Abdullah_Basfar_192kbps", "عبد الله بصفر"),
     "shaatree":   ("Abu_Bakr_Ash-Shaatree_128kbps", "أبو بكر الشاطري"),
     "ajamy":      ("Ahmed_ibn_Ali_al-Ajamy_128kbps_ketaballah.net", "أحمد بن علي العجمي"),
@@ -49,7 +48,6 @@ RECITERS = {
     "hudhaify":   ("Hudhaify_128kbps", "علي الحذيفي"),
     "qahtani":    ("Khaalid_Abdullaah_al-Qahtaanee_192kbps", "خالد القحطاني"),
     "ayyoub":     ("Muhammad_Ayyoub_128kbps", "محمد أيوب"),
-    "qasim":      ("Muhsin_Al_Qasim_192kbps", "عبد المحسن القاسم"),
     "qatami":     ("Nasser_Alqatami_128kbps", "ناصر القطامي"),
     "bukhatir":   ("Salaah_AbdulRahman_Bukhatir_128kbps", "صلاح بو خاطر"),
     "budair":     ("Salah_Al_Budair_128kbps", "صلاح البدير"),
