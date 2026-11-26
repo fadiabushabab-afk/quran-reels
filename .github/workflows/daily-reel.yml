@@ -67,7 +67,7 @@ jobs:
     # Watchdog runs also skip if any other run of this workflow started since the slot began, since
     # a failed run is already handled by its own 45-minute retry.
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 125       # the evening reel may wait here for its random time (see below)
     outputs:
       go: ${{ steps.check.outputs.go }}
       slot: ${{ steps.check.outputs.slot }}
@@ -111,6 +111,27 @@ jobs:
           if [ "$posted" = "yes" ]; then
             echo "::notice title=Already posted::today's $slot reel ($today) is already in history.json; nothing to do"
             echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # Evening reel, Saturday-Thursday: post at a random time between 18:00 and 20:00 Baghdad.
+          # The day's start time is drawn once from the date (the same for every run that day), between
+          # 18:00 and 19:45; rendering and posting take ~6-10 min, so the reel is live by ~20:00.
+          # A run that starts after that time goes straight on. (Friday's 09:07 reel is not delayed.)
+          if [ "$slot" = "evening" ] && [ "$dow" != "5" ]; then
+            target=$(python3 -c "import random,sys; print(random.Random(sys.argv[1]+'-evening').randint(0,105))" "$today")
+            now_min=$(( (hour - 18) * 60 + 10#$(TZ=Asia/Baghdad date +%M) ))
+            printf -v at "%02d:%02d" $((18 + target / 60)) $((target % 60))
+            echo "::notice title=Evening reel time::today's evening reel starts at $at Baghdad"
+            echo "random_at=$at" >> "$GITHUB_OUTPUT"
+            case "$SCHED" in
+              "7 15 * * 0-4,6"|auto-*)
+                if [ "$now_min" -lt "$target" ]; then
+                  echo "Waiting $((target - now_min)) min until $at"; sleep $(( (target - now_min) * 60 ))
+                fi ;;
+              *) # watchdog: don't step in before today's random time
+                if [ "$now_min" -lt "$target" ]; then
+                  echo "::notice title=Watchdog: too early::today's evening reel is set for $at"; echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
+                fi ;;
+            esac
           fi
           case "$SCHED" in
             "7 5 * * 0-4,6"|"7 15 * * 0-4,6"|"7 6 * * 5"|auto-*) echo "go=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
