@@ -984,5 +984,30 @@
   "posted": {
    "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-25-evening-45641521028"
   }
+ },
+ {
+  "date": "2026-11-26",
+  "surah": 2,
+  "start": 163,
+  "end": 163,
+  "group": 1,
+  "friday": false,
+  "title": "«وإلهكم إله واحد»",
+  "reciter": "dussary",
+  "background": "photo: b3e0193dc1a298a0e55ea291c017c48d.jpg",
+  "seconds": 19.49,
+  "cover_ms": 1500,
+  "action": "أعِد قراءة هذه الآيات بتدبّر، واختر منها كلمةً تعيش بها يومك",
+  "slot": "morning",
+  "too_long": [
+   [
+    48,
+    1,
+    5
+   ]
+  ],
+  "posted": {
+   "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-26-morning-45759467722"
+  }
  }
 ]
