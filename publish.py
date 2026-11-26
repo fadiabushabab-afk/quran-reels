@@ -226,6 +226,8 @@ def page_token_from(token, page_id):
         return token
     try:
         t = call("GET", f"{GRAPH}/{page_id}", {"fields": "access_token", "access_token": token}).get("access_token")
+        if t:
+            print(f"::add-mask::{t}")   # derived at run time, so GitHub doesn't hide it in logs by itself
         return t or token
     except Exception:
         return token
