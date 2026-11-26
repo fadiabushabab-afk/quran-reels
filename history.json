@@ -1009,5 +1009,34 @@
   "posted": {
    "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-26-morning-45759467722"
   }
+ },
+ {
+  "date": "2026-11-26",
+  "surah": 108,
+  "start": 1,
+  "end": 3,
+  "group": 2,
+  "friday": false,
+  "title": "سورة الكوثر",
+  "reciter": "minshawy",
+  "background": "video: 1000473815.mp4",
+  "seconds": 21.89,
+  "cover_ms": 6413,
+  "action": "احفظ هذه السورة أو راجِعها اليوم، واقرأ بها في صلاتك",
+  "slot": "evening",
+  "too_long": [
+   [
+    110,
+    1,
+    3
+   ]
+  ],
+  "posted": {
+   "instagram": "https://www.instagram.com/reel/DgNZG3VPKw_/",
+   "facebook": "https://www.facebook.com/reel/1407299867895412"
+  },
+  "failed": [
+   "tiktok"
+  ]
  }
 ]
