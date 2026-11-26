@@ -385,8 +385,28 @@ def deliver_manual(meta, caption, hist_path, done, force):
     return 0 if record(meta, results, hist_path) else 1
 
 
+def apply_ease(pause, meta):
+    """Easing back in after a pause: until "ease_until" (YYYY-MM-DD, inclusive) the slots in
+    "manual_slots" go to a GitHub Release instead of being posted, and "ease_stories": false keeps
+    stories off. From the day after, these lapse on their own and the full schedule is back."""
+    until = pause.get("ease_until")
+    if not until or meta.get("date", "") > until:
+        return pause
+    pause = dict(pause)
+    if (meta.get("slot") or "evening") in pause.get("manual_slots", []):
+        pause["manual"] = True
+        print(f"::notice title=Easing back in::{meta.get('slot')} reel delivered by hand until {until} (pause.json)")
+    if pause.get("ease_stories") is False:
+        pause["stories"] = False
+    return pause
+
+
 def main():
     pause = load_pause()
+    with open(os.path.join(OUT, "meta.json"), encoding="utf-8") as f:
+        pause = apply_ease(pause, json.load(f))
+    if pause.get("platforms") and not os.environ.get("PLATFORMS_INPUT"):
+        os.environ["PLATFORMS"] = ",".join(pause["platforms"])   # pause.json sets where scheduled reels go
     if pause.get("manual"):
         with open(os.path.join(OUT, "caption.txt"), encoding="utf-8") as f:
             caption = f.read().strip()

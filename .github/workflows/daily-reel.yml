@@ -203,6 +203,7 @@ jobs:
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
           PLATFORMS: ${{ github.event.inputs.platforms || vars.PLATFORMS || 'instagram,facebook' }}
+          PLATFORMS_INPUT: ${{ github.event.inputs.platforms }}   # a platform list typed into Run workflow wins over pause.json
           STORIES: ${{ github.event.inputs.story || vars.STORIES || 'true' }}   # scheduled runs: on unless the STORIES variable is false
           IG_HANDLE: ${{ vars.HANDLE || '@quran_reflections_waqf' }}
           MEDIA_REPO: ${{ vars.MEDIA_REPO }}          # optional public repo for the Instagram fallback
@@ -250,6 +251,6 @@ jobs:
           next=$(( ${{ github.event.inputs.attempt || '0' }} + 1 ))
           gh workflow run daily-reel.yml --repo "${{ github.repository }}" --ref "${{ github.ref_name }}" \
             -f publish=true -f retry_of="${{ github.run_id }}" -f attempt="$next" \
-            -f platforms="${{ github.event.inputs.platforms || vars.PLATFORMS || 'instagram,facebook' }}" \
+            -f platforms="${{ github.event.inputs.platforms }}" \
             -f slot="${{ needs.guard.outputs.slot || 'evening' }}"
           echo "::notice title=Retry $next started::the reel is being made again after the failure of run ${{ github.run_id }}"
