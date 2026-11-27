@@ -1038,5 +1038,27 @@
   "failed": [
    "tiktok"
   ]
+ },
+ {
+  "date": "2026-11-27",
+  "surah": 18,
+  "start": 101,
+  "end": 110,
+  "group": 1,
+  "friday": true,
+  "title": "آخر عشر آيات من سورة الكهف",
+  "reciter": "shuraym",
+  "background": "video: 1000473816.mp4",
+  "seconds": 104.31,
+  "cover_ms": 1500,
+  "action": "أكثِر من الصلاة على النبي ﷺ في يوم الجمعة",
+  "slot": "evening",
+  "posted": {
+   "instagram": "https://www.instagram.com/reel/DgPAYPrCAh4/",
+   "facebook": "https://www.facebook.com/1332221749985686/videos/2566909247135560"
+  },
+  "failed": [
+   "tiktok"
+  ]
  }
 ]
