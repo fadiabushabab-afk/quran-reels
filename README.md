@@ -21,7 +21,10 @@ Makes a daily 1080x1920 Quran video.
 - **Caption:** hook line (Arabic | English) → title → virtue with its source (if any) → reflection
   quoted from التفسير الميسر with its source → verses in Arabic → Saheeh International English →
   surah and reciter → «اكتب آمين» / share as sadaqah jariyah → "Follow @… for daily verses" →
-  5 hashtags (Instagram's limit): `#quran #القرآن_الكريم #surah<name> #<theme> #explore`.
+  5 hashtags (Instagram's limit), rotated at random each reel: a big-reach tag (`#quran` / `#islam` /
+  `#muslim` / `#القران_الكريم`), the surah (`#surah<name>`), a mood tag (by group; `#jumuah` on Fridays,
+  `#dua` for du'a passages), a discovery tag (Arabic or English) and `#صدقة_جارية` / `#sadaqahjariyah`.
+  The pools are at the top of `hashtags_for` in `generate.py`.
   Kept under 2,100 characters (the English is dropped first if a passage is long).
 - **Reciter:** random each day from 20 reciters, all 128–192 kbps; a reciter whose audio is missing is skipped (if a passage is too long with one reciter,
   another is tried).

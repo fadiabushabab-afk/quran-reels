@@ -716,7 +716,15 @@ HOOKS = {
                 "🌅 قبل أن يبدأ يومك… استمع | Before your day begins, listen"],
 }
 
-THEME_TAG = {1: "#islamicreminders", 2: "#quranrecitation", 3: "#تدبر"}
+# Hashtags (Instagram allows 5). Balanced and dynamic: one big-reach tag, the surah, a mood tag,
+# a discovery tag (Arabic / English in turn) and a sadaqah jariyah tag. Rotated at random each reel.
+REACH_TAGS = ["#quran", "#islam", "#muslim", "#القران_الكريم"]
+MOOD_TAGS = {1: ["#islamicreminders", "#sabr", "#deen"],
+             2: ["#quranrecitation", "#تلاوات", "#qurandaily"],
+             3: ["#تدبر", "#تدبر_القرآن", "#quranverses"]}
+DISCOVER_AR = ["#اكسبلور", "#تدبر_القرآن", "#ارح_سمعك_بالقران", "#القران_ربيع_قلوبنا"]
+DISCOVER_EN = ["#quranverses", "#islamicreminders", "#qurandaily", "#islamicreels", "#deen"]
+SADAQAH_TAGS = ["#صدقة_جارية", "#sadaqahjariyah"]
 
 
 def surah_tag(surah, name_en, start, end):
@@ -730,14 +738,18 @@ def surah_tag(surah, name_en, start, end):
     return f"#surah{n}"
 
 
-def hashtags_for(verses, group, friday, is_dua):
-    """Instagram allows 5 hashtags: broad, Arabic broad, surah, theme, #explore."""
+def hashtags_for(verses, group, friday, is_dua, rng=random):
+    """5 hashtags: big reach, surah, mood, discovery (Arabic or English), sadaqah jariyah."""
     real = [v for v in verses if v["marker"]]
     v0 = real[0]
-    theme = ("#jumuah" if friday else "#dua" if is_dua else THEME_TAG.get(group, "#islamicreminders"))
-    return " ".join(["#quran", "#القرآن_الكريم",
-                     surah_tag(v0["surah"], v0["surah_name_en"], v0["ayah"], real[-1]["ayah"]),
-                     theme, "#explore"])
+    mood = ("#jumuah" if friday else "#dua" if is_dua
+            else rng.choice(MOOD_TAGS.get(group, MOOD_TAGS[1])))
+    reach = rng.choice(REACH_TAGS)
+    used = {reach, mood}
+    pool = [t for t in rng.choice([DISCOVER_AR, DISCOVER_EN]) if t not in used]
+    discover = rng.choice(pool)
+    return " ".join([reach, surah_tag(v0["surah"], v0["surah_name_en"], v0["ayah"], real[-1]["ayah"]),
+                     mood, discover, rng.choice(SADAQAH_TAGS)])
 
 
 def tafsir_excerpt(verses, limit=280):
@@ -881,7 +893,7 @@ def main():
         kind = ("friday" if friday else "dua" if is_dua
                 else "morning" if args.slot == "morning" and rng.random() < 0.5 else "comfort")
         hook = rng.choice(HOOKS[kind])
-        tags = args.hashtags or hashtags_for(verses, group, friday, is_dua)
+        tags = args.hashtags or hashtags_for(verses, group, friday, is_dua, rng)
         with open(os.path.join(args.out, "caption.txt"), "w", encoding="utf-8") as f:
             act = actions.action_for(p, friday)
             f.write(caption(verses, title, reciter_ar, tags, virtue, grade, hook=hook,
