@@ -35,6 +35,10 @@ asset and Instagram fetches it (video_url); the direct (resumable) upload is the
 (Since 2 Nov the direct upload has been refused every time while the hosted URL works.)
 Only if both fail is a lighter re-encode tried.
 
+Releases: every scheduled reel is also kept as a GitHub Release of this repo (reel-<date>-<slot>:
+reel.mp4, cover.jpg, caption.txt, caption_tiktok.txt, hashtags.txt), whether it was posted or not, so it
+can be downloaded and used by hand. RELEASES=false stops it. A retry refreshes the same release.
+
 Writes out/published.json. When at least one platform posted, appends the passage
 to history.json, so a partly failed run never re-posts it to the platform that worked.
 """
@@ -339,16 +343,10 @@ def hashtags_of(caption):
     return " ".join(w for w in caption.split() if w.startswith("#") and len(w) > 1)
 
 
-def deliver_manual(meta, caption, hist_path, done, force):
-    """Manual mode (pause.json "manual": true): post nowhere. Put the reel, its caption and hashtags in
-    a GitHub Release so it can be downloaded on the phone and posted by hand, and record it in
-    history.json so the passage/background rotation moves on and the slot counts as done."""
-    if done and not force:
-        print(f"::notice title=Already delivered::this slot's reel ({done[-1].get('title')}) is already out today")
-        return 0
-    if meta.get("fixed"):
-        print("::notice title=Test run::not delivered (fixed passage)")
-        return 0
+def release_reel(meta, caption, heading):
+    """Put the reel (video, cover, caption, TikTok caption, hashtags) in a GitHub Release so it can always
+    be downloaded on the phone and used by hand. One release per day and slot: a retry or a forced
+    re-post replaces the files of the same release instead of adding another. Returns the URL or None."""
     video = os.path.join(OUT, "reel.mp4")
     tags = hashtags_of(caption)
     with open(os.path.join(OUT, "hashtags.txt"), "w", encoding="utf-8") as f:
@@ -357,10 +355,10 @@ def deliver_manual(meta, caption, hist_path, done, force):
     with open(os.path.join(OUT, "caption_tiktok.txt"), "w", encoding="utf-8") as f:
         f.write(tiktok_caption + "\n")
     slot = meta.get("slot") or "evening"
-    tag = f"reel-{meta['date']}-{slot}-{os.environ.get('GITHUB_RUN_ID', int(time.time()))}"
+    tag = f"reel-{meta['date']}-{slot}"
     cover_s = round(meta.get("cover_ms", 2500) / 1000, 1)
     title = f"{meta['date']} {'🌅 morning' if slot == 'morning' else '🌙 evening'} — {meta.get('title') or ''}"
-    notes = (f"**Ready to post by hand** — {meta.get('seconds', 0):.0f} s video, cover frame at {cover_s} s.\n\n"
+    notes = (f"{heading}\n\n{meta.get('seconds', 0):.0f} s video, cover frame at {cover_s} s.\n\n"
              "1. Download **reel.mp4** below.\n2. Copy the caption (below, or caption.txt) and paste it.\n"
              "   TikTok: use caption_tiktok.txt. Hashtags alone: hashtags.txt.\n\n"
              f"---\n\n```\n{caption}\n```\n")
@@ -373,13 +371,42 @@ def deliver_manual(meta, caption, hist_path, done, force):
     repo = os.environ.get("GITHUB_REPOSITORY")
     if not repo:
         print(f"(local run) would create release {tag} with {files}")
-        return 0
-    r = subprocess.run(["gh", "release", "create", tag, *files, "--repo", repo,
-                        "--title", title, "--notes", notes, "--latest"], capture_output=True, text=True)
+        return None
+    exists = subprocess.run(["gh", "release", "view", tag, "--repo", repo], capture_output=True).returncode == 0
+    if exists:      # retry / forced re-post of the same slot: refresh the files and notes
+        r = subprocess.run(["gh", "release", "upload", tag, *files, "--repo", repo, "--clobber"],
+                           capture_output=True, text=True)
+        if r.returncode == 0:
+            subprocess.run(["gh", "release", "edit", tag, "--repo", repo, "--title", title, "--notes", notes],
+                           capture_output=True, text=True)
+    else:
+        r = subprocess.run(["gh", "release", "create", tag, *files, "--repo", repo,
+                            "--title", title, "--notes", notes, "--latest"], capture_output=True, text=True)
     if r.returncode != 0:
-        print("::error title=Could not create the release::" + (r.stderr or r.stdout)[-800:].replace("\n", " "))
+        print("::warning title=Could not save the reel as a release::" + (r.stderr or r.stdout)[-800:].replace("\n", " "))
+        return None
+    url = f"https://github.com/{repo}/releases/tag/{tag}"
+    print("::notice title=Reel saved as a release::" + url)
+    return url
+
+
+def deliver_manual(meta, caption, hist_path, done, force):
+    """Manual mode (pause.json "manual": true): post nowhere. Put the reel, its caption and hashtags in
+    a GitHub Release so it can be downloaded on the phone and posted by hand, and record it in
+    history.json so the passage/background rotation moves on and the slot counts as done."""
+    if done and not force:
+        print(f"::notice title=Already delivered::this slot's reel ({done[-1].get('title')}) is already out today")
+        return 0
+    if meta.get("fixed"):
+        print("::notice title=Test run::not delivered (fixed passage)")
+        return 0
+    if not os.environ.get("GITHUB_REPOSITORY"):
+        release_reel(meta, caption, "**Ready to post by hand**")
+        return 0
+    url = release_reel(meta, caption, "**Ready to post by hand** — not posted automatically.")
+    if not url:
+        print("::error title=Could not create the release::the reel was not delivered")
         return 1
-    url = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else f"https://github.com/{repo}/releases/tag/{tag}"
     print("::notice title=Reel ready to post by hand::" + url)
     results = {"manual": {"permalink": url}}
     with open(os.path.join(OUT, "published.json"), "w", encoding="utf-8") as f:
@@ -527,8 +554,21 @@ def main():
 
     new_failed = any("error" in r for r in results.values())
     results, stories = {**before, **results}, {**stories_before, **stories}
+    release = None
+    if os.environ.get("RELEASES", "true").lower() != "false" and not meta.get("fixed"):
+        # Every scheduled reel is also kept as a GitHub Release (video + captions), posted or not,
+        # so it can be downloaded and used by hand. Never fails the run.
+        names = {"instagram": "Instagram", "facebook": "Facebook", "tiktok": "TikTok"}
+        lines = [f"- {names.get(k, k)}: {v['permalink']}" if "permalink" in v else f"- {names.get(k, k)}: ❌ failed"
+                 for k, v in results.items() if k in names]
+        heading = ("**Posted automatically**\n" + "\n".join(lines)) if lines else "**Not posted automatically.**"
+        try:
+            release = release_reel(meta, caption, heading)
+        except Exception as e:
+            print("::warning title=Could not save the reel as a release::" + str(e).replace("\n", " "))
     with open(os.path.join(OUT, "published.json"), "w", encoding="utf-8") as f:
-        json.dump({**results, "stories": stories}, f, ensure_ascii=False, indent=2)
+        json.dump({**results, "stories": stories, **({"release": release} if release else {})},
+                  f, ensure_ascii=False, indent=2)
     saved = record(meta, results, hist_path, stories)
     failed = new_failed or not saved
     return 1 if failed else 0    # red run -> GitHub emails you
