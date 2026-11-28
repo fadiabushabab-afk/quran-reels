@@ -1,7 +1,6 @@
 {
- "reason": "26 Nov 2026: automatic posting resumed on Instagram, Facebook and TikTok. Easing back in until 3 Dec: the evening reel is posted automatically with no stories; the morning reel is still delivered as a GitHub Release to post by hand. From 4 Dec the full schedule (morning + evening, stories on the evening reel) returns on its own. Delete this file to drop all of these rules at once.",
+ "reason": "28 Nov 2026: all automatic posting paused (Instagram, Facebook, TikTok). Meta returned 'API access blocked' on the evening reel; TikTok app still unaudited. Each reel is still made and delivered as a GitHub Release with its caption, to post by hand. To resume, remove \"manual\" (or restore the easing rules).",
+ "manual": true,
  "platforms": ["instagram", "facebook", "tiktok"],
- "ease_until": "2026-12-03",
- "manual_slots": ["morning"],
- "ease_stories": false
+ "stories": false
 }
