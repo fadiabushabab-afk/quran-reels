@@ -118,7 +118,9 @@ jobs:
           # A run that starts after that time goes straight on. (Friday's 09:07 reel is not delayed.)
           # Only while the repository is PUBLIC (Actions minutes are free there); on a private repo
           # waiting would use paid minutes, so the evening reel then keeps its fixed 18:07 time.
-          if [ "$slot" = "evening" ] && [ "$dow" != "5" ] \
+          # Off since 28 Nov 2026 (user chose a fixed 18:00 evening reel): set the repository variable
+          # RANDOM_EVENING to true to bring the random time back.
+          if [ "$slot" = "evening" ] && [ "$dow" != "5" ] && [ "${{ vars.RANDOM_EVENING }}" = "true" ] \
              && [ "$(gh api "repos/${{ github.repository }}" --jq .private 2>/dev/null)" = "false" ]; then
             target=$(python3 -c "import random,sys; print(random.Random(sys.argv[1]+'-evening').randint(0,105))" "$today")
             now_min=$(( (hour - 18) * 60 + 10#$(TZ=Asia/Baghdad date +%M) ))
