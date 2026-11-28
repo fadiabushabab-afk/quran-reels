@@ -1060,5 +1060,23 @@
   "failed": [
    "tiktok"
   ]
+ },
+ {
+  "date": "2026-11-28",
+  "surah": 10,
+  "start": 85,
+  "end": 86,
+  "group": 3,
+  "friday": false,
+  "title": "دعاء موسى وهارون",
+  "reciter": "hudhaify",
+  "background": "video: 1000473817.mp4",
+  "seconds": 19.76,
+  "cover_ms": 1500,
+  "action": "اجعل هذا الدعاء من دعائك اليوم، وردّده في سجودك",
+  "slot": "morning",
+  "posted": {
+   "manual": "https://github.com/fadiabushabab-afk/quran-reels/releases/tag/reel-2026-11-28-morning"
+  }
  }
 ]
